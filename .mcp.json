@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "0gzk": {
+      "command": "node",
+      "args": ["packages/mcp/dist/bin.js"]
+    }
+  }
+}

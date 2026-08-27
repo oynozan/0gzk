@@ -1,0 +1,75 @@
+{
+  "name": "@0gzk/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for 0gzk: circuit discovery over the catalog and live registries, plus circuit authoring tools",
+  "type": "module",
+  "bin": {
+    "0gzk-mcp": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./catalog": {
+      "types": "./dist/catalog/index.d.ts",
+      "import": "./dist/catalog/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0gzk/core.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/0gzk/core#readme",
+  "bugs": "https://github.com/0gzk/core/issues",
+  "license": "MIT",
+  "author": "0gzk",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "zk",
+    "zero-knowledge",
+    "circom",
+    "groth16",
+    "0g",
+    "0gzk"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "clean": "rimraf dist *.tsbuildinfo",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.4",
+    "@0gzk/sdk": "workspace:^",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "ethers": "^6.13.0",
+    "snarkjs": "^0.7.5",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.0"
+  }
+}
