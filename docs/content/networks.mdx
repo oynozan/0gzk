@@ -1,0 +1,89 @@
+---
+title: Networks & storage
+description: "Supported chains, registry addresses, storage backends (0G Storage and IPFS), and the bundle-URI convention."
+---
+
+# Networks & storage
+
+Since **0.4.0**, 0gzk is multi-chain: the **`CircuitRegistry`** can live on **0G Chain** or **Base**, and circuit bundles can live on **0G Storage** or **IPFS**. This page is the single source of truth for the chain presets, the storage-backend matrix, and the on-chain bundle-URI convention. Every surface (SDK, CLI, web app, examples) resolves networks the same way.
+
+## Supported networks
+
+| Network | Chain ID | RPC | Explorer | `CircuitRegistry` |
+| --- | ---: | --- | --- | --- |
+| **`0g-mainnet`** | `16661` | `https://evmrpc.0g.ai` | [chainscan.0g.ai](https://chainscan.0g.ai) | [`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`](https://chainscan.0g.ai/address/0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d) |
+| **`0g-testnet`** | `16602` | `https://evmrpc-testnet.0g.ai` | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) | [`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`](https://chainscan-galileo.0g.ai/address/0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6) |
+| **`base-sepolia`** | `84532` | `https://sepolia.base.org` | [sepolia.basescan.org](https://sepolia.basescan.org) | pending deploy |
+| **`base`** | `8453` | `https://mainnet.base.org` | [basescan.org](https://basescan.org) | not deployed |
+
+The 0G chains additionally carry a **0G Storage indexer** (`https://indexer-storage-turbo.0g.ai` for `0g-mainnet`, `https://indexer-storage-testnet-turbo.0g.ai` for `0g-testnet`); Base chains are plain EVM networks with no native bundle storage.
+
+Until the Base registries are filled into the SDK's baked-in map, pass an explicit address on those chains via **`--registry`** / **`OGZK_REGISTRY_ADDRESS`** (or upgrade to an SDK release that includes them).
+
+### Names, aliases, default
+
+- **Canonical names** are the four in the table: `0g-mainnet`, `0g-testnet`, `base`, `base-sepolia`.
+- **Deprecated aliases** `mainnet` → `0g-mainnet` and `testnet` → `0g-testnet` are still accepted **everywhere** a network is read (env vars, `--network`, `0gzk config set network`, `loadConfig` overrides). Prefer the canonical names in new configs.
+- **Default** is unchanged: **`0g-mainnet`** when nothing is set.
+- **Unknown names now throw** (listing the valid values) instead of silently falling back to mainnet. If a script relied on that silent fallback, fix the name.
+
+Presets are exported from the SDK root as **`NETWORKS`** together with **`resolveNetwork`**, **`networkForChainId`**, **`explorerTxUrl`**, and **`explorerAddressUrl`** — see **[SDK → core](/sdk/core#networks-and-chain-presets)**.
+
+## Storage backends
+
+Bundle tarballs can be hosted on either backend; **`uploadBundle`** / **`fetchBundle`** and the CLI route automatically.
+
+| | **`0g`** — 0G Storage | **`ipfs`** — IPFS |
+| --- | --- | --- |
+| **Upload needs** | A funded 0G wallet (`OGZK_PRIVATE_KEY`); the storage upload is a signed transaction on the `storageNetwork` chain. | A token for a `pinFileToIPFS`-compatible pinning API (`OGZK_IPFS_API_TOKEN`, e.g. a Pinata JWT). No wallet, no gas. |
+| **Fetch needs** | Nothing — the public indexer serves reads. | Nothing — any public HTTP gateway serves reads (default `https://ipfs.io`). |
+| **Integrity anchor** | `rootHash` = the 0G Storage Merkle root of the tarball; the storage network itself verifies the bytes. | `rootHash` = the CIDv0 sha2-256 digest (bijective with the CID), plus the registry's `vkeyHash` check after download. |
+| **Default endpoints** | Indexer from the `storageNetwork` preset. | Upload `https://api.pinata.cloud/pinning/pinFileToIPFS`, gateway `https://ipfs.io`. |
+
+**Default backend by chain family:** 0G chains → `0g`; Base chains → `ipfs`. That means Base users never need a 0G wallet — a pinning token is enough to publish, and fetching needs nothing at all. Override with `--storage <0g|ipfs>`, `OGZK_STORAGE`, or `0gzk config set storage`.
+
+**`storageNetwork`** picks which 0G chain the `0g` backend signs uploads on (`0g-mainnet` or `0g-testnet`). Default: the selected network when it is a 0G chain, else `0g-mainnet`. Only relevant when `storage` is `0g`.
+
+IPFS bundles are pinned as **CIDv0** (`Qm...`) on purpose: a CIDv0 is `base58btc` of a sha2-256 multihash with a 32-byte digest, so it is **bijective** with a `bytes32` — the digest slots straight into the registry's `rootHash` field and the CID is reconstructible from the bare hash (**`cidToRootHash`** / **`rootHashToCidV0`** in the SDK).
+
+## Bundle-URI convention
+
+The on-chain record's **`metadataURI`** field doubles as the bundle locator. **`parseBundleRef(record)`** applies this resolution rule when fetching by name:
+
+1. `metadataURI` starts with **`ipfs://`** → the bundle is on IPFS at that CID. The CID's digest **must** equal `rootHash`; an inconsistent record is an error, not a fallback.
+2. `metadataURI` starts with **`0g://`** → the bundle is on 0G Storage; the embedded hash must equal `rootHash`.
+3. **Anything else** (empty string, an `https://` docs link, the legacy `0gzk://name@version` convention) → fetch from 0G Storage by bare `rootHash` — exactly the pre-0.4.0 behavior, so every existing record keeps resolving.
+
+Because the convention rides on the existing `metadataURI` string field, **`CircuitRegistry.sol` is unchanged** — no redeploys were needed on 0G.
+
+When you publish with a non-0G backend, the CLI **forces** the bundle URI into `metadataURI` (combining it with a different `--metadata-uri` is an error): an IPFS bundle is only reachable through its URI, so that slot is what keeps it resolvable. Put extra human-readable metadata inside the bundle's `metadata.json` instead.
+
+## Cross-chain publishing and gas
+
+Registry chain and storage backend are independent, so you can, for example, register on Base Sepolia while hosting bytes on 0G Storage (`--network base-sepolia --storage 0g`). In that split the **upload tx needs gas on the `storageNetwork` chain** and the **registration tx needs gas on the registry chain** — the same key signs both, so fund it on both chains. The CLI prints a note when a publish spans two chains. The default pairings (0G registry + 0G Storage, Base registry + IPFS) never need gas on more than one chain.
+
+## Publish to Base Sepolia quickstart
+
+The cheapest full walkthrough of the new stack — no 0G wallet involved:
+
+```bash
+# 1. Get a pinning-service token (e.g. a Pinata JWT: pinata.cloud → API Keys)
+#    and store it once. It is masked in `0gzk config get`.
+0gzk config set ipfsApiToken eyJhbGciOi...
+
+# 2. Fund your key with Base Sepolia ETH from any Base Sepolia faucet
+#    (e.g. Coinbase or Alchemy's) — the registration tx is the only gas cost.
+0gzk key 0x...
+
+# 3. Publish: pins the bundle to IPFS (CIDv0), then registers on Base Sepolia
+#    with metadataURI = ipfs://<cid>.
+0gzk publish ./circuit_bundle --network base-sepolia --register
+
+# 4. Resolve and prove against the Base Sepolia registry.
+OGZK_NETWORK=base-sepolia 0gzk registry get my_circuit
+OGZK_NETWORK=base-sepolia 0gzk prove --name my_circuit@0.1.0 ./input.json
+```
+
+Fetching routes through the IPFS gateway automatically because the record's `metadataURI` is `ipfs://...`. If the Base Sepolia registry address is not baked into your installed SDK yet, add `--registry 0x...` (or `OGZK_REGISTRY_ADDRESS`) to the commands above.
+
+Freshly pinned CIDs can take a minute to propagate to public gateways — see **[Troubleshooting](/troubleshooting#ipfs-gateway-404--timeout-right-after-publishing)**.

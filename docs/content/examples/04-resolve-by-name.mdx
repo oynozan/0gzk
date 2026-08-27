@@ -9,7 +9,7 @@ description: "Read-only CircuitRegistry phone-book: print every field of a recor
 
 **Upstream:** [`examples/04-resolve-by-name`](https://github.com/0gzk/core/tree/main/examples/04-resolve-by-name)
 
-The script is 54 lines, calls **no proving code**, and never downloads the bundle. It is purely "what does the registry say about this name?".
+The script is 60 lines, calls **no proving code**, and never downloads the bundle. It is purely "what does the registry say about this name?". It works against **any chain carrying a `CircuitRegistry`** — 0G Galileo by default, Base Sepolia via three env vars (see below).
 
 ## Run it
 
@@ -80,15 +80,22 @@ import {
   parseNameSpec,
 } from "@0gzk/sdk/onchain";
 
+// Works against any chain carrying a CircuitRegistry. Defaults target 0G
+// Galileo; for Base Sepolia set e.g.
+//   OG_RPC_URL=https://sepolia.base.org OG_CHAIN_ID=84532 \
+//   OG_EXPLORER=https://sepolia.basescan.org node resolve.mjs age_verification
 const RPC_URL = process.env.OG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
 const EXPLORER = process.env.OG_EXPLORER ?? "https://chainscan-galileo.0g.ai";
 const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
+const CHAIN_ID = process.env.OG_CHAIN_ID ? Number(process.env.OG_CHAIN_ID) : undefined;
 
 const spec = process.argv[2] ?? "poseidon_preimage";
 const parsed = parseNameSpec(spec);
 
 const provider = new JsonRpcProvider(RPC_URL);
-const registry = getRegistryContract(provider, REGISTRY);
+const registry = CHAIN_ID
+  ? getRegistryContract(provider, REGISTRY, CHAIN_ID)
+  : getRegistryContract(provider, REGISTRY);
 
 const { version, record } = parsed.version
   ? { version: parsed.version, record: await getVersion(registry, parsed.name, parsed.version) }
@@ -176,8 +183,20 @@ Two notes:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | **`OG_RPC_URL`** | **`https://evmrpc-testnet.0g.ai`** | Chain RPC. |
+| **`OG_CHAIN_ID`** | (unset → **`getRegistryContract`**'s default) | Chain ID for the baked-in registry-address lookup; set it whenever you point **`OG_RPC_URL`** at a non-default chain. |
 | **`OG_EXPLORER`** | **`https://chainscan-galileo.0g.ai`** | Base URL for explorer links. |
-| **`OG_REGISTRY_ADDRESS`** | (built-in for chain 16602) | Override the registry address. |
+| **`OG_REGISTRY_ADDRESS`** | (built-in per chain) | Override the registry address. |
+
+### Query Base Sepolia instead
+
+```bash
+OG_RPC_URL=https://sepolia.base.org \
+OG_CHAIN_ID=84532 \
+OG_EXPLORER=https://sepolia.basescan.org \
+node resolve.mjs age_verification
+```
+
+Add `OG_REGISTRY_ADDRESS=0x...` if your installed `@0gzk/sdk` does not have the Base Sepolia address baked in yet.
 
 ## Exercises
 

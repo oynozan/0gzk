@@ -146,6 +146,49 @@ type ValidatedInputs = Record<string, ValidatedValue>;
 
 The return type of **`validateInputs`**. In practice every **`uint`**, **`bool`**, and **`field`** input is emitted as a **`string`** of decimal digits (which is what snarkjs is happiest with); unknown scalar types pass through untouched.
 
+## Networks and chain presets
+
+Since 0.4.0 the root export also carries the chain presets shared by every 0gzk surface — pure data plus string helpers, no Node imports, so they are safe in the browser:
+
+```typescript
+import {
+  NETWORKS,           // Record<Network, NetworkPreset>
+  NETWORK_ALIASES,    // { mainnet: "0g-mainnet", testnet: "0g-testnet" }
+  NETWORK_NAMES,      // ["0g-mainnet", "0g-testnet", "base", "base-sepolia"]
+  resolveNetwork,     // (name) => Network | undefined (accepts aliases)
+  networkForChainId,  // (chainId) => Network | undefined
+  explorerTxUrl,      // (preset, txHash) => string
+  explorerAddressUrl, // (preset, address) => string
+} from "@0gzk/sdk";
+
+const preset = NETWORKS["base-sepolia"];
+// { chainId: 84532, family: "evm", rpcUrl: "https://sepolia.base.org",
+//   explorer: "https://sepolia.basescan.org" }
+
+explorerTxUrl(preset, "0xabc..."); // "https://sepolia.basescan.org/tx/0xabc..."
+```
+
+**`resolveNetwork`** returns **`undefined`** for unknown names so callers choose between defaulting and throwing; **`loadConfig`** in **`@0gzk/sdk/node`** throws. The full preset table lives on **[Networks & storage](/networks)**.
+
+## Bundle references
+
+Also isomorphic since 0.4.0: the codec that maps between the registry's **`bytes32 rootHash`** and storage-backend addresses (see **[Networks & storage → Bundle-URI convention](/networks#bundle-uri-convention)** for the resolution rule these implement):
+
+```typescript
+import {
+  parseBundleRef,    // (record) => { backend: "0g" | "ipfs", ref: string }
+  backendForRef,     // (ref) => "0g" | "ipfs" | undefined (bare 0x is ambiguous)
+  formatBundleUri,   // (backend, rootHash) => "0g://0x..." | "ipfs://Qm..."
+  cidToRootHash,     // "Qm..." CIDv0 => "0x<32-byte digest>" (throws on CIDv1)
+  rootHashToCidV0,   // "0x<digest>" => "Qm..." CIDv0
+  isRootHash,        // 0x + 64 hex chars?
+  type BundleRef,
+  type StorageBackendId,
+} from "@0gzk/sdk";
+```
+
+**`parseBundleRef`** throws on inconsistent records (an **`ipfs://`** or **`0g://`** `metadataURI` whose hash does not match **`rootHash`**) rather than silently falling back — an inconsistent record is an integrity problem, not a routing hint.
+
 ## Browser checklist
 
 When you ship **`@0gzk/sdk`** to the browser:

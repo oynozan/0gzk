@@ -5,7 +5,7 @@ description: "Full reference for the 0gzk command line: publish, fetch, prove, r
 
 # CLI
 
-The **`0gzk`** binary wraps the SDK with shell-friendly ergonomics: pack and upload bundles, fetch by **`rootHash`**, prove against any of three sources, and browse the on-chain registry.
+The **`0gzk`** binary wraps the SDK with shell-friendly ergonomics: pack and upload bundles to **0G Storage or IPFS**, fetch by **`rootHash`** / **`ipfs://` CID** / **`0g://` URI**, prove against any of three sources, and browse the on-chain registry on **0G Chain or Base**.
 
 ```bash
 npm install -g @0gzk/cli
@@ -15,7 +15,8 @@ npm install -g @0gzk/cli
 ## Global behavior
 
 - The CLI **does not read `.env` files**. Persistent settings live in **`~/.0gzk/config.json`** and are managed with **`0gzk config`** (see [`0gzk config`](#0gzk-config) below). Shell env vars are still honored as a one-off override (handy for CI).
-- Every command resolves configuration through **`@0gzk/sdk/node`**'s **`loadConfig`** (see **[SDK -> Node](/sdk/node)** for the full table). CLI flags **`--network`**, **`--rpc-url`**, **`--indexer-url`**, and **`--key`** override the matching environment variable for that invocation.
+- Every command resolves configuration through **`@0gzk/sdk/node`**'s **`loadConfig`** (see **[SDK -> Node](/sdk/node)** for the full table). CLI flags **`--network`**, **`--storage`**, **`--storage-network`**, **`--rpc-url`**, **`--indexer-url`**, and **`--key`** override the matching environment variable for that invocation.
+- **`--network`** accepts the canonical names **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`**, plus the deprecated 0G aliases **`mainnet`** / **`testnet`**. Unknown names error out with the valid list (they no longer fall back silently). See **[Networks & storage](/networks)**.
 - After a command resolves, the CLI calls **`process.exit(process.exitCode ?? 0)`** to break out of stuck snarkjs worker threads (relevant for **`prove`** especially).
 - Uncaught exceptions print **`error: <message>`** in red and **`process.exit(1)`**.
 
@@ -23,23 +24,28 @@ npm install -g @0gzk/cli
 
 Highest wins:
 
-1. **CLI flag** (`--key`, `--network`, `--rpc-url`, `--indexer-url`, `--registry`)
-2. **Shell environment variable** (`OG_PRIVATE_KEY`, `OG_NETWORK`, `OG_RPC_URL`, `OG_INDEXER_URL`, `OGZK_REGISTRY_ADDRESS`)
+1. **CLI flag** (`--key`, `--network`, `--storage`, `--storage-network`, `--rpc-url`, `--indexer-url`, `--registry`)
+2. **Shell environment variable** — the generic `OGZK_*` name first, then the legacy `OG_*` name (`OGZK_PRIVATE_KEY`/`OG_PRIVATE_KEY`, `OGZK_NETWORK`/`OG_NETWORK`, `OGZK_RPC_URL`/`OG_RPC_URL`, `OG_INDEXER_URL`, `OGZK_STORAGE`, `OGZK_STORAGE_NETWORK`, `OGZK_IPFS_*`, `OGZK_REGISTRY_ADDRESS`)
 3. **`~/.0gzk/config.json`** (managed by **`0gzk config`**)
-4. **Built-in network preset** (mainnet by default)
+4. **Built-in network preset** (`0g-mainnet` by default)
 
 The CLI reads **`~/.0gzk/config.json`** at startup and injects each present key into **`process.env`** **only if the matching env var is not already set**, then hands off to the SDK. That's how the priority order is enforced — the SDK itself just reads **`process.env`**.
 
 ## Environment variables
 
-These are honored when set in the shell, but the recommended way to set them permanently is **`0gzk config set`**.
+These are honored when set in the shell, but the recommended way to set them permanently is **`0gzk config set`**. Where two names are listed, the generic **`OGZK_*`** name is preferred and wins over the legacy **`OG_*`** name; both keep working.
 
 | Variable | Read by | Purpose |
 | --- | --- | --- |
-| **`OG_NETWORK`** | every command | **`testnet`** or **`mainnet`**; anything else falls back to **`mainnet`**. |
-| **`OG_RPC_URL`** | every command | Override EVM RPC. |
-| **`OG_INDEXER_URL`** | **`publish`**, **`fetch`**, **`prove`**, **`registry resolve`** | Override 0G Storage indexer. |
-| **`OG_PRIVATE_KEY`** | **`publish`**, **`registry register`** | 0x-prefixed signing key. |
+| **`OGZK_NETWORK`** / **`OG_NETWORK`** | every command | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**); unknown values **error** with the valid list. |
+| **`OGZK_RPC_URL`** / **`OG_RPC_URL`** | every command | Override EVM RPC. |
+| **`OG_INDEXER_URL`** | **`publish`**, **`fetch`**, **`prove`**, **`registry resolve`** | Override the 0G Storage indexer (0g backend only). |
+| **`OGZK_PRIVATE_KEY`** / **`OG_PRIVATE_KEY`** | **`publish`**, **`registry register`** | 0x-prefixed signing key. |
+| **`OGZK_STORAGE`** | **`publish`**, **`fetch`**, **`prove`** | Bundle storage backend: **`0g`** or **`ipfs`**. Default: **`0g`** on 0G chains, **`ipfs`** on Base chains. |
+| **`OGZK_STORAGE_NETWORK`** | **`publish`** | 0G chain the **`0g`** backend signs uploads on: **`0g-mainnet`** or **`0g-testnet`**. |
+| **`OGZK_IPFS_API_URL`** | **`publish --storage ipfs`** | `pinFileToIPFS`-compatible upload endpoint; default **`https://api.pinata.cloud/pinning/pinFileToIPFS`**. |
+| **`OGZK_IPFS_API_TOKEN`** | **`publish --storage ipfs`** | Bearer token for the pinning API (e.g. a Pinata JWT). Required to publish via IPFS. |
+| **`OGZK_IPFS_GATEWAY`** | **`fetch`**, **`prove`**, **`registry resolve`** | HTTP gateway for IPFS reads; default **`https://ipfs.io`**. |
 | **`OGZK_REGISTRY_ADDRESS`** | every **`registry`** subcommand, **`prove --name`**, **`publish --register`** | Override the registry address before falling back to the baked-in map. |
 | **`OGZK_CACHE_DIR`** | **`prove --root-hash`**, **`prove --name`** | Root directory for cached bundles; default **`~/.0gzk/bundles`**. |
 | **`OGZK_CONFIG_DIR`** | every command | Override the config dir; default **`~/.0gzk`**. The config file is **`<dir>/config.json`**. |
@@ -58,6 +64,8 @@ These are honored when set in the shell, but the recommended way to set them per
 
 The default is **`5m`**. **`--no-wait`** is **not** equivalent to **`0`**; the CLI still gives the upload a **30 s** submission budget so it has time to learn the **`rootHash`**.
 
+The wait budget only matters for the **`0g`** backend, where storage finalization is asynchronous. IPFS pinning is a single HTTP request; it either returns a CID or fails outright.
+
 ---
 
 ## `0gzk config`
@@ -69,10 +77,16 @@ Read and write persistent CLI settings. The store is a flat JSON file at **`~/.0
 | Key | Validation | Injected as |
 | --- | --- | --- |
 | **`privateKey`** | **`/^0x[0-9a-fA-F]{64}$/`** | **`OG_PRIVATE_KEY`** |
-| **`network`** | **`"testnet"`** or **`"mainnet"`** | **`OG_NETWORK`** |
+| **`network`** | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (or alias **`mainnet`** / **`testnet`**) | **`OG_NETWORK`** |
 | **`rpcUrl`** | http(s) URL | **`OG_RPC_URL`** |
 | **`indexerUrl`** | http(s) URL | **`OG_INDEXER_URL`** |
 | **`registry`** | **`/^0x[0-9a-fA-F]{40}$/`** | **`OGZK_REGISTRY_ADDRESS`** |
+| **`storage`** | **`"0g"`** or **`"ipfs"`** | **`OGZK_STORAGE`** |
+| **`storageNetwork`** | **`"0g-mainnet"`** or **`"0g-testnet"`** | **`OGZK_STORAGE_NETWORK`** |
+| **`ipfsApiUrl`** | http(s) URL | **`OGZK_IPFS_API_URL`** |
+| **`ipfsApiToken`** | non-empty string (secret, masked) | **`OGZK_IPFS_API_TOKEN`** |
+| **`ipfsGateway`** | http(s) URL | **`OGZK_IPFS_GATEWAY`** |
+| **`anthropicApiKey`** | non-empty string (secret, masked; for the upcoming **`0gzk agent`**) | **`ANTHROPIC_API_KEY`** |
 
 Validation runs before the file is written; an invalid value never reaches disk.
 
@@ -81,11 +95,13 @@ Validation runs before the file is written; an invalid value never reaches disk.
 ```bash
 0gzk config set <key> <value>      # write a value (validated, atomic)
 0gzk config get [key]              # print one value or all values
-0gzk config get [key] --show       # reveal the private key (default is masked)
+0gzk config get [key] --show       # reveal secret values (default is masked)
 0gzk config list                   # alias for `config get` with no key
 0gzk config unset <key>            # remove a key
 0gzk config path                   # print absolute path to config.json
 ```
+
+Secret keys (**`privateKey`**, **`ipfsApiToken`**, **`anthropicApiKey`**) are masked in every listing unless **`--show`** is passed.
 
 ### Shortcut: `0gzk key <hex>`
 
@@ -100,16 +116,22 @@ Same validation, same masked output, same on-disk location.
 ### Typical first-time setup
 
 ```bash
-0gzk key 0x...                     # store the signing key once
-0gzk config set network mainnet    # optional: pick a network (mainnet is default)
-0gzk config get                    # confirm
+0gzk key 0x...                        # store the signing key once
+0gzk config set network 0g-mainnet    # optional: pick a network (0g-mainnet is default)
+0gzk config get                       # confirm
 # config: /home/you/.0gzk/config.json
 #
-#   privateKey  0x1234…abcd  config
-#   network     mainnet      config
-#   rpcUrl      (unset)      (default)
-#   indexerUrl  (unset)      (default)
-#   registry    (unset)      (default)
+#   privateKey       0x1234…abcd  config
+#   network          0g-mainnet   config
+#   rpcUrl           (unset)      (default)
+#   indexerUrl       (unset)      (default)
+#   registry         (unset)      (default)
+#   storage          (unset)      (default)
+#   storageNetwork   (unset)      (default)
+#   ipfsApiUrl       (unset)      (default)
+#   ipfsApiToken     (unset)      (default)
+#   ipfsGateway      (unset)      (default)
+#   anthropicApiKey  (unset)      (default)
 #
 # Resolution: CLI flag > shell env > ~/.0gzk/config.json > built-in network preset.
 ```
@@ -122,16 +144,16 @@ Each row of **`config get`** shows where the **effective** value comes from for 
 | --- | --- |
 | **`(default)`** | Nothing set; the SDK will use its built-in network preset. |
 | **`config`** | Value comes from **`~/.0gzk/config.json`**. |
-| **`env:OG_*`** | Shell env var was set **before** the CLI ran; it overrides the config file. |
+| **`env:<VAR>`** (e.g. **`env:OG_NETWORK`**) | Shell env var was set **before** the CLI ran; it overrides the config file. |
 
 CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** because they only apply to a single invocation.
 
 ### Security notes
 
-- **`privateKey`** is stored in plain text. Anyone with read access to your home directory can read it.
+- Secret values (**`privateKey`**, **`ipfsApiToken`**, **`anthropicApiKey`**) are stored in plain text. Anyone with read access to your home directory can read them.
 - The file is **`chmod 600`** on POSIX. On Windows the chmod is a soft no-op; rely on filesystem ACLs.
-- **`config set privateKey ...`** ends up in shell history. Prefer reading from a file or pipe in that case (e.g. **`0gzk config set privateKey "$(cat /path/to/key.txt)"`**).
-- The masked display shows the first 6 and last 4 hex chars (e.g. **`0xCe9f…64d`**) so you can confirm the right key without leaking it on a screen recording.
+- **`config set privateKey ...`** (and the other secret keys) ends up in shell history. Prefer reading from a file or pipe in that case (e.g. **`0gzk config set privateKey "$(cat /path/to/key.txt)"`**).
+- The masked display shows the first 6 and last 4 chars (e.g. **`0xCe9f…64d`**) so you can confirm the right value without leaking it on a screen recording.
 
 ---
 
@@ -144,29 +166,29 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 | Argument / option | Default | Purpose |
 | --- | --- | --- |
 | **`<bundleDir>`** | required | Path to a directory containing **`metadata.json`**, **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`** (and any extras like **`verifier.sol`**). |
-| **`--network <testnet \| mainnet>`** | env / **`mainnet`** | Network preset. |
+| **`--network <network>`** | env / **`0g-mainnet`** | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**). |
+| **`--storage <0g \| ipfs>`** | **`0g`** on 0G chains, **`ipfs`** on Base chains | Bundle storage backend. |
+| **`--storage-network <network>`** | selected 0G network, else **`0g-mainnet`** | 0G chain the **`0g`** backend signs the upload tx on. |
 | **`--rpc-url <url>`** | preset | Override EVM RPC. |
-| **`--indexer-url <url>`** | preset | Override 0G Storage indexer. |
-| **`--key <hex>`** | **`OG_PRIVATE_KEY`** | Signing key. |
+| **`--indexer-url <url>`** | preset | Override 0G Storage indexer (0g backend). |
+| **`--key <hex>`** | **`OGZK_PRIVATE_KEY`** / **`OG_PRIVATE_KEY`** | Signing key. |
 | **`--no-receipt`** | off (receipt written) | Skip writing **`.published.json`**. |
 | **`--register`** | off | Also call **`CircuitRegistry.publishVersion`** after upload. |
 | **`--registry <address>`** | **`OGZK_REGISTRY_ADDRESS`** or baked-in | Override registry address. |
-| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. |
+| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. **Conflicts with a non-0G `--storage`** (see below). |
 | **`--verifier-address <address>`** | **`0x0...0`** | On-chain verifier (fill later with **`setVerifier`** if unknown). |
-| **`--wait <duration>`** | **`5m`** | See **Wait budgets** above. |
+| **`--wait <duration>`** | **`5m`** | See **Wait budgets** above (0g backend only). |
 | **`--no-wait`** | off | Return as soon as **`rootHash`** is known; **`--register`** still runs. |
 
 ### Behavior
 
-1. **`loadConfig`** with overrides; **`OG_PRIVATE_KEY`** required (else throws **"Missing OG_PRIVATE_KEY"**).
-2. Calls **`uploadBundle`** from **`@0gzk/sdk/node`**:
-   - Packs the directory into a gzip tarball.
-   - Computes **`rootHash`** locally from the Merkle tree.
-   - Submits via the 0G indexer.
-   - Streams progress through the **`UploadStage`** path (**`packing -> submitting -> streaming -> finalizing -> done`**) into a spinner.
-3. On **`UploadTimeoutError`**: keep the **`rootHash`** if it was learned, mark the run as **not finalized**, set **`process.exitCode = 2`**.
-4. Prints **`rootHash`**, plus **`txHash`** / **`txSeq`** / explorer URL when finalized.
-5. With **`--register`**: reads **`metadata.json`** + **`verification_key.json`** from the bundle, computes **`vkeyHash`**, calls **`createCircuit(name)`** (if new) then **`publishVersion`**, awaits the receipt.
+1. **`loadConfig`** with overrides. The **`0g`** backend requires a signing key (**`OGZK_PRIVATE_KEY`** / **`OG_PRIVATE_KEY`**); the **`ipfs`** backend requires **`OGZK_IPFS_API_TOKEN`** instead — no wallet for the upload itself.
+2. Calls **`uploadBundle`** from **`@0gzk/sdk/node`**, which routes to the configured backend:
+   - **`0g`**: packs the directory into a gzip tarball, computes **`rootHash`** locally from the Merkle tree, submits via the 0G indexer (signing on the **`storageNetwork`** chain), and streams progress through the **`UploadStage`** path (**`packing -> submitting -> streaming -> finalizing -> done`**) into a spinner.
+   - **`ipfs`**: packs the same tarball and POSTs it to the pinning API with **`cidVersion: 0`**; **`rootHash`** is the CIDv0's sha2-256 digest.
+3. On **`UploadTimeoutError`** (0g only): keep the **`rootHash`** if it was learned, mark the run as **not finalized**, set **`process.exitCode = 2`**.
+4. Prints **`rootHash`** and the bundle **`uri`** (**`0g://0x...`** or **`ipfs://Qm...`**), plus **`txHash`** / **`txSeq`** / explorer URL for finalized 0G uploads.
+5. With **`--register`**: reads **`metadata.json`** + **`verification_key.json`** from the bundle, computes **`vkeyHash`**, calls **`createCircuit(name)`** (if new) then **`publishVersion`**, awaits the receipt. For a **non-0G backend the bundle URI is forced into the on-chain `metadataURI` slot** — that URI is the only way consumers can locate the bundle, so combining it with a different **`--metadata-uri`** is an error. When the registry chain and the storage chain differ (e.g. **`--network base-sepolia --storage 0g`**), the CLI prints a note that the upload tx and the registration tx need gas on **two different chains** (the same key signs both).
 6. Unless **`--no-receipt`**, writes **`<bundleDir>/.published.json`**.
 
 ### `.published.json` shape
@@ -174,9 +196,12 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 ```json
 {
   "rootHash": "0x...",
+  "uri": "0g://0x..." | "ipfs://Qm..." | null,
+  "storage": "0g" | "ipfs",
   "txHash": "0x..." | null,
   "txSeq": 123 | null,
-  "network": "testnet" | "mainnet",
+  "network": "0g-mainnet" | "0g-testnet" | "base" | "base-sepolia",
+  "chainId": 16661,
   "publishedAt": "2026-05-14T17:00:00.000Z",
   "finalized": true,
   "registry": {
@@ -189,7 +214,7 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 }
 ```
 
-**`registry`** is **`null`** when **`--register`** was not used.
+**`registry`** is **`null`** when **`--register`** was not used. **`uri`** is **`null`** when the upload timed out before completing; **`txHash`** / **`txSeq`** are **`null`** for IPFS uploads (there is no storage transaction). **`0gzk registry register`** later reuses **`uri`** to fill the on-chain **`metadataURI`** automatically.
 
 ### Exit codes
 
@@ -201,29 +226,31 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 
 ### Gotchas
 
-- **`OG_PRIVATE_KEY`** is **always** required; the upload itself is a signed transaction.
+- With **`--storage 0g`** a signing key is **always** required; the upload itself is a signed transaction. With **`--storage ipfs`** the upload needs only the pinning token — a key is needed only for **`--register`**.
 - A timeout that finalizes asynchronously **does not** rewrite **`.published.json`** later; rerun **`0gzk publish`** or **`0gzk registry register`** to capture the on-chain receipt.
 
 ---
 
 ## `0gzk fetch`
 
-**Synopsis:** **`0gzk fetch <rootHash> [outputDir] [options]`**
+**Synopsis:** **`0gzk fetch <ref> [outputDir] [options]`**
 
 ### Arguments and flags
 
 | Argument / option | Default | Purpose |
 | --- | --- | --- |
-| **`<rootHash>`** | required | 0x-prefixed hash from **`publish`** or the registry. |
+| **`<ref>`** | required | Bundle reference: bare **`0x`** root hash, **`ipfs://<cid>`**, bare **`Qm...`** CID, or **`0g://0x...`** URI. |
 | **`[outputDir]`** | OS temp dir | Where to extract. |
-| **`--network`** | env / **`mainnet`** | Network preset. |
-| **`--indexer-url`** | preset / env | Override indexer. |
+| **`--network`** | env / **`0g-mainnet`** | Network preset. |
+| **`--storage <0g \| ipfs>`** | config default | Backend used for **bare `0x` refs** (prefixed refs pick their own backend). |
+| **`--indexer-url`** | preset / env | Override the 0G Storage indexer. |
 
 ### Behavior
 
-1. **`loadConfig`** with **`network`** and **`indexerUrl`** overrides.
-2. **`fetchBundle(rootHash, config, outputDir)`** from **`@0gzk/sdk/node`** downloads **`bundle.tar.gz`** and extracts it into the chosen directory (or a fresh temp dir if **`outputDir`** is omitted).
-3. Prints circuit **`name`**, **`version`**, **`protocol`**, **`curve`** read from **`metadata.json`**, then either the resolved output path or a note that it landed in a temp dir.
+1. **`loadConfig`** with **`network`**, **`storage`**, and **`indexerUrl`** overrides.
+2. The backend is chosen from the ref itself (**`ipfs://`** / **`Qm...`** → IPFS gateway, **`0g://`** → 0G Storage); a bare **`0x`** hash uses **`--storage`** / the configured default (0G Storage unless you changed it — the pre-0.4.0 behavior).
+3. **`fetchBundle(ref, config, outputDir)`** from **`@0gzk/sdk/node`** downloads **`bundle.tar.gz`** and extracts it into the chosen directory (or a fresh temp dir if **`outputDir`** is omitted).
+4. Prints circuit **`name`**, **`version`**, **`protocol`**, **`curve`** read from **`metadata.json`**, then either the resolved output path or a note that it landed in a temp dir.
 
 ### Exit codes
 
@@ -234,6 +261,7 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 
 - There is **no** **`--rpc-url`** on **`fetch`** (storage is the only network it touches).
 - Default extraction is to **`os.tmpdir()`**; if you want a stable cache use the second positional argument or pre-create the directory.
+- A bare **`0x`** hash for an IPFS-hosted bundle needs **`--storage ipfs`** (or pass the **`ipfs://`** URI); the hash alone does not say which backend holds the bytes.
 
 ---
 
@@ -247,14 +275,14 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 | --- | --- | --- |
 | **`<inputFile>`** | required | JSON file with circuit inputs (must parse to a plain object). |
 | **`--bundle <dir>`** | one-of | Local **`circuit_bundle/`**. |
-| **`--root-hash <hex>`** | one-of | Fetch from 0G Storage by hash; cached under **`OGZK_CACHE_DIR/<rootHash>/`**. |
-| **`--name <spec>`** | one-of | Resolve **`name`** or **`name@version`** via **`CircuitRegistry`** then fetch. |
+| **`--root-hash <hex>`** | one-of | Fetch from storage by hash (backend = the configured **`storage`** default, 0G Storage unless changed); cached under **`OGZK_CACHE_DIR/<rootHash>/`**. |
+| **`--name <spec>`** | one-of | Resolve **`name`** or **`name@version`** via **`CircuitRegistry`** then fetch from the backend named by the record. |
 | **`--registry <address>`** | **`OGZK_REGISTRY_ADDRESS`** or baked-in | Used with **`--name`**. |
 | **`--rpc-url <url>`** | env / preset | Used with **`--name`**. |
 | **`--out <dir>`** | **`proof-<YYYYMMDD-HHMMSS>`** in cwd | Where to write outputs. |
 | **`--no-verify`** | verify on | Skip **`verifyLocal`**. |
-| **`--network`** | env / **`mainnet`** | Network preset. |
-| **`--indexer-url`** | preset / env | Override indexer. |
+| **`--network`** | env / **`0g-mainnet`** | Network preset. |
+| **`--indexer-url`** | preset / env | Override the 0G Storage indexer. |
 
 Exactly **one** of **`--bundle`**, **`--root-hash`**, **`--name`** must be provided.
 
@@ -264,7 +292,7 @@ Exactly **one** of **`--bundle`**, **`--root-hash`**, **`--name`** must be provi
 2. Resolve the bundle:
    - **`--bundle`**: **`readBundleFromDir`** (requires **`metadata.json`** in the directory).
    - **`--root-hash`**: validate **`/^0x[0-9a-fA-F]+$/`**, then look at **`OGZK_CACHE_DIR/<rootHashLower>/`**. On cache hit, **`readBundleFromDir`**; on miss, **`fetchBundle`** into that directory. If the fetch fails, the cache directory is removed.
-   - **`--name`**: **`parseNameSpec`** -> **`getVersion`** / **`getLatest`** through **`@0gzk/sdk/onchain`** -> **`fetchBundle`** under the cache root.
+   - **`--name`**: **`parseNameSpec`** -> **`getVersion`** / **`getLatest`** through **`@0gzk/sdk/onchain`** -> **`parseBundleRef`** decides the backend from the record's **`metadataURI`** (**`ipfs://`** → IPFS gateway, else 0G Storage) -> fetch under the cache root. After the download, the fetched **`verification_key.json`**'s keccak256 canonical hash is compared to the record's **`vkeyHash`**; a mismatch prints a **warning** (the bundle may not be the one that was registered).
 3. Prints the circuit name, version, source label (**`dir`**, **`registry:<name>@<version>`**, **`cache:<hash>`**, **`0g:<hash>`**), and runs **`generateProof`** from **`@0gzk/sdk`** (which calls **`validateInputs`** for you).
 4. Unless **`--no-verify`**, runs **`verifyLocal`**. A **`false`** result sets **`process.exitCode = 1`** and throws a clear error.
 5. Writes **`proof.json`**, **`public.json`**, **`result.json`** into **`--out`** (created if needed).
@@ -303,7 +331,8 @@ Use when a previous **`0gzk publish --register`** timed out or you uploaded out-
 | --- | --- | --- |
 | **`<rootHash>`** | required | Must match **`/^0x[0-9a-fA-F]{64}$/`** (stricter than **`prove --root-hash`**). |
 | **`--bundle <dir>`** | required | Local bundle to compute **`(name, version, vkeyHash)`** from. |
-| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. |
+| **`--uri <bundleUri>`** | inferred | Bundle URI to record on-chain (e.g. **`ipfs://Qm...`** or **`0g://0x...`**); **validated against `<rootHash>`** via **`parseBundleRef`**. When omitted, the CLI auto-infers it from the bundle's **`.published.json`** (if its **`rootHash`** matches). |
+| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. Cannot differ from **`--uri`** when both are set. |
 | **`--verifier-address <address>`** | **`0x0...0`** | Verifier contract. |
 | **`--network`**, **`--rpc-url`**, **`--key`**, **`--registry`** | env / presets | Standard overrides. |
 
@@ -311,10 +340,11 @@ Use when a previous **`0gzk publish --register`** timed out or you uploaded out-
 
 1. Validate **`rootHash`** strictly.
 2. **`readBundleFromDir`** + **`hashVkey`** to compute **`vkeyHash`**.
-3. **`connectRegistry`** (signer required; throws if no key).
-4. **`createCircuit(name)`** if the name does not exist; otherwise enforce **`ownerOf(name) === signer`**.
-5. **`publishVersion(name, version, rootHash, vkeyHash, verifier, metadataURI)`** -> **`tx.wait()`**.
-6. Prints **`registryTx`**.
+3. **`connectRegistry`** (signer required; throws naming **`OGZK_PRIVATE_KEY`** / **`OG_PRIVATE_KEY`** / **`--key`** if no key).
+4. Resolve the **`metadataURI`** slot: explicit **`--uri`** (digest-checked against **`<rootHash>`**), else the **`uri`** from the bundle's **`.published.json`** when it matches, else **`--metadata-uri`**, else empty. Getting this right is what keeps **IPFS-hosted bundles resolvable** — their URI is the only pointer to the bytes.
+5. **`createCircuit(name)`** if the name does not exist; otherwise enforce **`ownerOf(name) === signer`**.
+6. **`publishVersion(name, version, rootHash, vkeyHash, verifier, metadataURI)`** -> **`tx.wait()`**.
+7. Prints **`registryTx`**.
 
 ### Exit codes
 
@@ -385,7 +415,7 @@ Each record prints **`rootHash`**, **`vkeyHash`**, **`verifier`**, **`publisher`
 
 ### Behavior
 
-1. **`connectRegistry`** + **`parseNameSpec`** + **`getVersion`** / **`getLatest`**.
+1. **`connectRegistry`** + **`parseNameSpec`** + **`getVersion`** / **`getLatest`**, then **`parseBundleRef`** routes the download to the backend named by the record's **`metadataURI`** (IPFS gateway or 0G Storage). The fetched vkey is hash-checked against the record's **`vkeyHash`**; a mismatch prints a warning.
 2. With **`[outputDir]`**: extracts into **`<outputDir>/<rootHashLower>/`**; reuses an existing **`metadata.json`** there as a cache hit.
 3. Without **`[outputDir]`**: extracts into an OS temp dir created by **`fetchBundle`** (the help text mentions **`~/.0gzk/bundles/<rootHash>/`**, but that is what **`prove --name`** does, not **`registry resolve`**).
 4. Prints **`name@version`**, **`rootHash`**, the file map, the chosen output directory, and the verifier address if not the zero address.

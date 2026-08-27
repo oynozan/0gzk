@@ -1,0 +1,59 @@
+---
+title: "AI agent"
+description: "0gzk agent — a terminal AI assistant that discovers circuits and helps you author new ones."
+---
+
+# AI agent
+
+**`0gzk agent`** is a terminal chat assistant built on the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview). It mounts the same nine [MCP tools](/mcp) in-process, so it can search the circuit catalog, resolve live registry records on 0G and Base, scaffold new circuits, build bundles, and run test proofs — from one prompt.
+
+```bash
+# One-shot
+0gzk agent "which circuit proves a balance stays above a threshold?"
+
+# Interactive chat (exit/quit or Ctrl+D to leave)
+0gzk agent
+```
+
+## Setup
+
+The Agent SDK is an **optional** dependency — plain CLI users never download it:
+
+```bash
+npm install -g @anthropic-ai/claude-agent-sdk   # alongside a global @0gzk/cli
+# (inside this repo it is already a dev dependency — nothing to install)
+```
+
+Authentication, in order of precedence:
+
+1. `ANTHROPIC_API_KEY` in your shell, or persisted once via
+   `0gzk config set anthropicApiKey sk-ant-...` (stored mode 0600, masked in `config get`).
+2. No key set? The agent falls back to your local **Claude Code login** if you have one.
+
+## Flags
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--model <id>` | `claude-sonnet-5` | Any Anthropic model id (e.g. `claude-fable-5`) |
+| `--max-turns <n>` | `25` | Agentic turn budget per request |
+| `--full-access` | off | Allow file edits and shell commands. Default is 0gzk tools + read-only file access (`Read`/`Glob`/`Grep`) |
+| `--repo-root <dir>` | auto-detect | Point at a 0gzk checkout explicitly |
+
+Inside a repo checkout the agent runs in **repo mode** (catalog + authoring tools); anywhere else it still answers discovery questions from the live registries.
+
+## What a session looks like
+
+```
+$ 0gzk agent "which circuit proves someone is over 18?"
+  → mcp__0gzk__search_circuits {"query":"prove age over 18"}
+  → mcp__0gzk__get_circuit {"name":"age_verification"}
+Use age_verification: private birthYear, public currentYear and minAge,
+public isAdult output. Prove it with:
+  0gzk prove --name age_verification input.json
+
+[3 turn(s) · $0.21]
+```
+
+Authoring flow the agent can drive end-to-end: `scaffold_circuit` → you write the constraints → `build_circuit` (needs the [circom](https://docs.circom.io/getting-started/installation/) binary) → `prove_circuit` with a test input → `0gzk publish --register`.
+
+Each turn prints the tools it called (dimmed) and a cost footer, so there are no surprise bills — a typical discovery question costs a few cents on the default model.

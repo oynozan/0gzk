@@ -10,6 +10,7 @@ optimizer_runs = 200
 
 [rpc_endpoints]
 galileo = "${OG_RPC_URL}"
+base-sepolia = "https://sepolia.base.org"
 
 [fmt]
 line_length = 120

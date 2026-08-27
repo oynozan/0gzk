@@ -11,8 +11,8 @@ description: "The four subpaths of @0gzk/sdk, what each one is for, and the peer
 
 | Import | Runs in | What you get |
 | --- | --- | --- |
-| **`@0gzk/sdk`** | Node **and** browser | **`generateProof`**, **`verifyLocal`**, **`validateInputs`**, **`InputValidationError`**, **`BN128_FIELD_MODULUS`**, and all the shared types (**`BundleFiles`**, **`CircuitMetadata`**, **`InputSpec`**, **`ProofResult`**, ...). |
-| **`@0gzk/sdk/node`** | Node only | **`loadConfig`**, **`requireSigningConfig`**, **`NETWORKS`**, **`readBundleFromDir`**, **`fetchBundle`**, **`uploadBundle`**, **`UploadTimeoutError`**. |
+| **`@0gzk/sdk`** | Node **and** browser | **`generateProof`**, **`verifyLocal`**, **`validateInputs`**, **`InputValidationError`**, **`BN128_FIELD_MODULUS`**, the network presets (**`NETWORKS`**, **`resolveNetwork`**, **`networkForChainId`**, **`explorerTxUrl`**, **`explorerAddressUrl`**), the bundle-ref codec (**`parseBundleRef`**, **`backendForRef`**, **`formatBundleUri`**, **`cidToRootHash`**, **`rootHashToCidV0`**), and all the shared types (**`BundleFiles`**, **`CircuitMetadata`**, **`InputSpec`**, **`ProofResult`**, ...). |
+| **`@0gzk/sdk/node`** | Node only | **`loadConfig`**, **`requireSigningConfig`**, **`readBundleFromDir`**, **`fetchBundle`**, **`uploadBundle`**, **`UploadTimeoutError`**, the storage backends (**`ZeroGStorageBackend`**, **`IpfsStorageBackend`**, **`createStorageBackend`**), plus re-exports of the network presets and bundle-ref helpers. |
 | **`@0gzk/sdk/onchain`** | Node **and** browser | **`getRegistryContract`**, **`REGISTRY_ADDRESSES`**, **`getRegistryAddress`**, **`getVersion`**, **`getLatest`**, **`listCircuits`**, **`listVersions`**, **`resolveBundle`**, **`parseNameSpec`**, **`CIRCUIT_REGISTRY_ABI`**. |
 | **`@0gzk/sdk/build`** | Node only | **`buildCircuitBundle`** plus every primitive (**`fetchPowersOfTau`**, **`setupGroth16`**, **`assembleBundle`**, **`hashVkey`**, **`canonicalJSON`**, **`blake2b512File`**, **`PTAU_BLAKE2B`**, **`PtauIntegrityError`**, ...). |
 
@@ -33,7 +33,7 @@ The root **`@0gzk/sdk`** already re-exports everything in this table; reach for 
 | Package | Required by | Notes |
 | --- | --- | --- |
 | **`snarkjs`** | **`@0gzk/sdk`**, **`@0gzk/sdk/build`** | Required peer. **`generateProof`**, **`verifyLocal`**, and **`setupGroth16`** all call into it. Pin to **`^0.7.5`**. |
-| **`@0gfoundation/0g-ts-sdk`** | **`@0gzk/sdk/node`** | Marked optional in **`package.json`** but **required** for **`fetchBundle`** / **`uploadBundle`** (which import **`Indexer`** and **`ZgFile`**). Pin to **`^1.2.4`**. |
+| **`@0gfoundation/0g-ts-sdk`** | **`@0gzk/sdk/node`** | Optional peer, **lazily imported**: only loaded when the **`0g`** storage backend is actually used. Required for 0G Storage uploads/fetches; IPFS-only consumers (e.g. Base users) can skip it entirely. Pin to **`^1.2.4`**. |
 | **`ethers`** | **`@0gzk/sdk/onchain`**, **`@0gzk/sdk/build`** (via **`hashVkey`**) | Marked optional but required for the registry helpers and **`vkeyHash`** computation. Pin to **`^6.13.0`**. |
 
 The root entry has **no** **`@0gfoundation/0g-ts-sdk`** or **`ethers`** dependency, so a browser bundle that only proves can ship those bytes alone.
@@ -43,14 +43,14 @@ The root entry has **no** **`@0gfoundation/0g-ts-sdk`** or **`ethers`** dependen
 ```mermaid
 flowchart LR
   Bundle["circuit_bundle/"] -->|readBundleFromDir| BF["BundleFiles"]
-  Storage["0G Storage"] -->|fetchBundle| BF
+  Storage["0G Storage / IPFS"] -->|fetchBundle| BF
   Registry["CircuitRegistry"] -->|resolveBundle| BF
   BF -->|generateProof| Proof["ProofResult"]
   Proof -->|verifyLocal| Bool["true / false"]
   Proof -.->|on-chain calldata| Verifier["Groth16 verifier"]
 ```
 
-Every flow ends in **`BundleFiles`** before the prover runs. **`@0gzk/sdk/onchain`** turns a **`name@version`** into a record; **`@0gzk/sdk/node`** turns a **`rootHash`** into bytes; **`@0gzk/sdk/build`** turns a **`.circom`** file into a bundle in the first place. The proving and verification calls themselves live in **`@0gzk/sdk`** and never touch the network.
+Every flow ends in **`BundleFiles`** before the prover runs. **`@0gzk/sdk/onchain`** turns a **`name@version`** into a record; **`@0gzk/sdk/node`** turns a bundle reference (a **`rootHash`**, an **`ipfs://` CID**, or a **`0g://` URI**) into bytes; **`@0gzk/sdk/build`** turns a **`.circom`** file into a bundle in the first place. The proving and verification calls themselves live in **`@0gzk/sdk`** and never touch the network.
 
 ## ESM only
 

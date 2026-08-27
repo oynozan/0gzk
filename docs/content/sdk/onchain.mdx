@@ -20,10 +20,12 @@ function getRegistryAddress(chainId: number): string | null;
 
 | Chain ID | Network | Address |
 | ---: | --- | --- |
-| **`16661`** | 0G mainnet | **`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`** |
-| **`16602`** | 0G Galileo testnet | **`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`** |
+| **`16661`** | 0G mainnet (`0g-mainnet`) | **`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`** |
+| **`16602`** | 0G Galileo testnet (`0g-testnet`) | **`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`** |
+| **`84532`** | Base Sepolia (`base-sepolia`) | **`null`** — pending deploy, will be filled |
+| **`8453`** | Base mainnet (`base`) | **`null`** — not deployed |
 
-**`getRegistryAddress(chainId)`** returns **`null`** for unknown chains. **`getRegistryContract`** falls back to this map when the caller does not pass an explicit address.
+**`getRegistryAddress(chainId)`** returns **`null`** for unknown chains (and for known chains whose registry is not deployed yet). **`getRegistryContract`** falls back to this map when the caller does not pass an explicit address; on a `null` entry it throws, so pass an explicit **`address`** on Base until the deployed addresses land in a release.
 
 ### `CIRCUIT_REGISTRY_ABI`
 
@@ -47,15 +49,19 @@ function getRegistryContract(
 
 Returns a typed read-or-write **`ethers.Contract`** bound to the registry. The defaults are:
 
-- **`address`**: when omitted, falls back to **`getRegistryAddress(chainId ?? 16661)`** (mainnet).
-- **`chainId`**: defaults to **`16661`**. Pass **`16602`** for Galileo.
+- **`address`**: when omitted, falls back to **`getRegistryAddress(chainId)`**.
+- **`chainId`**: defaults to **`16661`** (0G mainnet) for backwards compatibility. Now that the registry lives on more than one chain, **always pass `chainId` explicitly** in new code — the default is a footgun the moment your provider points anywhere else.
 
 ```typescript
 import { JsonRpcProvider } from "ethers";
 import { getRegistryContract } from "@0gzk/sdk/onchain";
 
-// Mainnet, baked-in address.
-const mainnet = getRegistryContract(new JsonRpcProvider("https://evmrpc.0g.ai"));
+// 0G mainnet, baked-in address (pass the chainId anyway for clarity).
+const mainnet = getRegistryContract(
+  new JsonRpcProvider("https://evmrpc.0g.ai"),
+  undefined,
+  16661,
+);
 
 // Galileo testnet, baked-in address.
 const galileo = getRegistryContract(
@@ -64,11 +70,18 @@ const galileo = getRegistryContract(
   16602,
 );
 
+// Base Sepolia — explicit address until the deploy lands in the baked-in map.
+const baseSepolia = getRegistryContract(
+  new JsonRpcProvider("https://sepolia.base.org"),
+  "0xYourBaseSepoliaRegistry",
+  84532,
+);
+
 // Custom deployment.
 const custom = getRegistryContract(provider, "0xMyRegistry", 31337);
 ```
 
-Throws when no address can be resolved (unknown chain id and no explicit **`address`**).
+Throws when no address can be resolved (unknown chain id, or a known chain whose registry is not deployed, and no explicit **`address`**).
 
 ## Reading the registry
 
@@ -151,11 +164,13 @@ Quirk: **`parseNameSpec("@foo")`** returns **`{ name: "", version: "foo" }`** be
 function resolveBundle(
   registry: Contract,
   spec: { name: string; version?: string },
-  fetchBundleFn: (rootHash: string) => Promise<BundleFiles>,
+  fetchBundleFn: (rootHash: string, record?: VersionRecord) => Promise<BundleFiles>,
 ): Promise<{ record: ResolvedRecord; bundle: BundleFiles }>;
 ```
 
 The full **"name -> bytes"** path: resolves the version (latest when **`spec.version`** is missing), then delegates the actual download to **`fetchBundleFn`**. That callback indirection is what lets the same helper work in Node and the browser.
+
+Since 0.4.0 the callback also receives the **full `VersionRecord`** as its second argument, so it can route to the right storage backend with **`parseBundleRef`** (records whose **`metadataURI`** is **`ipfs://...`** live on IPFS, not 0G Storage — see **[Networks & storage](/networks#bundle-uri-convention)**). One-argument callbacks keep working unchanged, but they will fetch IPFS-hosted bundles from the wrong backend — prefer the record-aware form.
 
 #### Node composition
 
@@ -166,15 +181,25 @@ import {
   resolveBundle,
   parseNameSpec,
 } from "@0gzk/sdk/onchain";
-import { fetchBundle, loadConfig } from "@0gzk/sdk/node";
+import { fetchBundle, loadConfig, parseBundleRef } from "@0gzk/sdk/node";
 
 const config = loadConfig();
-const registry = getRegistryContract(new JsonRpcProvider(config.rpcUrl));
+const registry = getRegistryContract(
+  new JsonRpcProvider(config.rpcUrl),
+  undefined,
+  config.chainId,
+);
 
 const { record, bundle } = await resolveBundle(
   registry,
   parseNameSpec("age_verification@0.1.0"),
-  (rootHash) => fetchBundle(rootHash, { indexerUrl: config.indexerUrl }),
+  (rootHash, rec) => {
+    const ref = rec ? parseBundleRef(rec) : { backend: "0g" as const, ref: rootHash };
+    return fetchBundle(
+      ref.backend === "ipfs" ? `ipfs://${ref.ref}` : ref.ref,
+      config,
+    );
+  },
 );
 
 console.log(record.name, record.version, record.rootHash);
@@ -213,7 +238,7 @@ const { record, bundle } = await resolveBundle(
 );
 ```
 
-**`resolveBundle`** does not hard-fail when **`bundle.metadata.name`** differs from **`spec.name`** (circuits can legitimately be aliased), but the well-behaved case is that they match. Re-check the **`vkeyHash`** against the value on **`record`** before trusting the bundle in production.
+**`resolveBundle`** does not hard-fail when **`bundle.metadata.name`** differs from **`spec.name`** (circuits can legitimately be aliased), but the well-behaved case is that they match. Re-check the **`vkeyHash`** against the value on **`record`** before trusting the bundle in production — the CLI and the web app do exactly this on every fetch-by-name and warn on a mismatch.
 
 ## Types
 

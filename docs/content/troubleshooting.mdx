@@ -52,6 +52,25 @@ try {
 
 If you want to wait indefinitely instead, pass **`--wait forever`** (CLI) or **`{ timeoutMs: Infinity }`** (SDK).
 
+## IPFS gateway 404 / timeout right after publishing
+
+A freshly pinned CID can take a minute or two to propagate to public gateways like **`https://ipfs.io`** — a 404 or timeout immediately after `0gzk publish --storage ipfs` almost always means **propagation lag, not a lost pin**. Retry after a short wait, or point fetches at your pinning provider's own gateway (which sees the pin immediately):
+
+```bash
+# e.g. a Pinata dedicated gateway
+0gzk config set ipfsGateway https://your-subdomain.mypinata.cloud
+# or one-off:
+OGZK_IPFS_GATEWAY=https://your-subdomain.mypinata.cloud 0gzk fetch ipfs://Qm...
+```
+
+## Base public RPC rate limits
+
+The default Base endpoints (**`https://mainnet.base.org`**, **`https://sepolia.base.org`**) are public and rate-limited; bursts of registry reads (e.g. paging through `0gzk registry list`) can hit `429`s or hang. Point **`OGZK_RPC_URL`** (or `0gzk config set rpcUrl`) at a dedicated provider endpoint for anything beyond casual use.
+
+## `--legacy` is 0G-only
+
+The `forge` recipes for 0G Chain pass **`--legacy`** because 0G's RPC expects pre-EIP-1559 transactions. **Base uses standard EIP-1559 — do not pass `--legacy` there**; drop the flag from `forge create` / `forge script` invocations when targeting Base or Base Sepolia.
+
 ## Registry record vs malicious bundle
 
-Always **verify `vkeyHash`** against **`verification_key.json`** after download. The registry points to content; it does not attest witness correctness for you.
+Always **verify `vkeyHash`** against **`verification_key.json`** after download. The registry points to content; it does not attest witness correctness for you. Fetch-by-name in the CLI and web app does this check automatically since 0.4.0 and prints a warning on mismatch.

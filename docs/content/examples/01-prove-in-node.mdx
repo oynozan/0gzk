@@ -181,7 +181,7 @@ const INDEXER_URL =
 const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
 ```
 
-Defaults target Galileo so the script works out of the box. **`OG_REGISTRY_ADDRESS`** stays **`undefined`** unless you set it, which is exactly what **`getRegistryContract`** wants: it falls back to its baked-in address map for chain **`16602`** when you pass **`undefined`**.
+Defaults target Galileo so the script works out of the box. **`OG_REGISTRY_ADDRESS`** stays **`undefined`** unless you set it; **`getRegistryContract`** then falls back to its baked-in address map (note the map's default chain is 0G mainnet — pass a `chainId` or an explicit address when your RPC points elsewhere, as [Example 04](/examples/04-resolve-by-name) does via `OG_CHAIN_ID`).
 
 ### CLI parsing
 

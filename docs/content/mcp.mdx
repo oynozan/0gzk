@@ -1,0 +1,70 @@
+---
+title: "MCP server"
+description: "Circuit discovery and authoring tools for any MCP client — Claude Code, Claude Desktop, Cursor."
+---
+
+# MCP server
+
+**`@0gzk/mcp`** is a [Model Context Protocol](https://modelcontextprotocol.io) server that turns any MCP client — Claude Code, Claude Desktop, Cursor — into a 0gzk circuit assistant. It answers "which circuit proves X?" from a searchable catalog, resolves live registry records on every supported chain, and scaffolds/builds/proves circuits in a checkout of this repo.
+
+```bash
+# Claude Code (any directory)
+claude mcp add 0gzk -- npx -y @0gzk/mcp
+
+# This repo ships pre-wired: .mcp.json points Claude Code at the local build.
+pnpm build   # once, so packages/mcp/dist exists
+```
+
+Claude Desktop / Cursor (`claude_desktop_config.json` / `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "0gzk": { "command": "npx", "args": ["-y", "@0gzk/mcp"] }
+  }
+}
+```
+
+## Two modes
+
+| Mode | When | What you get |
+| --- | --- | --- |
+| **repo** | Started inside a 0gzk checkout (or with `--repo-root` / `OGZK_REPO_ROOT` / `--catalog`) | All 9 tools: catalog-backed search + the 4 authoring tools |
+| **discovery** | Anywhere else (e.g. `npx -y @0gzk/mcp` in an empty dir) | The 5 discovery tools, backed by the live on-chain registries |
+
+## Tools
+
+| Tool | Mode | What it does |
+| --- | --- | --- |
+| `search_circuits` | both | Ranked keyword search over names, tags, use cases, descriptions, and I/O docs |
+| `list_circuits` | both | Page through the catalog or a live registry (`chain` selects which) |
+| `get_circuit` | both | Full metadata, typed I/O schema, example input, publications, and a ready-to-run prove recipe. Unknown names are resolved on-chain and their bundle fetched into the local cache |
+| `get_example_input` | both | The circuit's committed `example_input.json` |
+| `resolve_circuit` | both | `name[@version]` → per-chain registry records (rootHash, vkeyHash, verifier, publisher, metadataURI) |
+| `scaffold_circuit` | repo | Create `circuits/<name>/` with a typed `.circom` skeleton, `metadata.json`, `build.sh`, `example_input.json` |
+| `validate_metadata` | repo | Validate a `metadata.json` against the schema, with warnings for missing discovery fields |
+| `build_circuit` | repo | Compile with `circom` + run the pure-JS trusted setup (`@0gzk/sdk/build`) into `circuit_bundle/`. Fails gracefully when `circom` is not installed |
+| `prove_circuit` | repo | Generate + verify a Groth16 proof against a local bundle, a registry name, or a rootHash |
+
+Resources: `ogzk://guide/circom-authoring` (an authoring handbook distilled from this repo's build pipeline) and `ogzk://catalog` (the raw `circuits/index.json`).
+
+## The catalog
+
+Discovery is powered by **`circuits/index.json`** — a committed, deterministic index generated from every `circuits/*/metadata.json` (including `tags` / `useCases`), `example_input.json`, r1cs constraint counts, and the per-chain publication records in `circuits/publications.json`. Regenerate it after touching any circuit:
+
+```bash
+0gzk catalog build    # rewrites circuits/index.json + the circuits/README.md table
+0gzk catalog check    # CI runs this; exits 1 when stale
+```
+
+## Environment
+
+| Variable | Purpose |
+| --- | --- |
+| `OGZK_NETWORK` / `OG_NETWORK` | Default chain for live-registry tools |
+| `OG_RPC_URL` | RPC override for the selected chain |
+| `OGZK_REGISTRY_ADDRESS_BASE`, `OGZK_REGISTRY_ADDRESS_BASE_SEPOLIA` | Registry addresses for Base chains until they are baked into the SDK |
+| `OGZK_REPO_ROOT` | Force repo mode from any working directory |
+| `OGZK_CACHE_DIR` | Bundle cache root (default `~/.0gzk/bundles`) |
+
+The same tool set powers [`0gzk agent`](/agent) in-process — no separate server needed there.

@@ -34,6 +34,9 @@ interface CircuitMetadata {
   name: string;
   version: string;
   description?: string;
+  tags?: string[];      // free-form discovery tags, e.g. ["identity", "age", "comparison"]
+  keywords?: string[];  // extra search keywords not natural in the description ("kyc", "over-18")
+  useCases?: string[];  // one-line scenarios: "Gate an 18+ product without collecting DOB"
   protocol: "groth16" | "plonk" | "fflonk";
   curve: "bn128" | "bls12-381";
   inputs: Record<string, InputSpec>;
@@ -48,6 +51,8 @@ interface CircuitMetadata {
 ```
 
 The canonical bundle descriptor (typically **`metadata.json`** on disk). **`inputs`** drives **`validateInputs`**, so getting it right is what gives you good error messages before snarkjs runs. **`files`** controls what **`readBundleFromDir`** and **`assembleBundle`** look for inside the bundle directory.
+
+The optional **discovery fields** (**`tags`**, **`keywords`**, **`useCases`**, added in 0.4.0) are ignored by the prover and the validator; they exist for search, catalogs, and registry browsers. All 14 reference circuits in `circuits/` ship with `tags` and `useCases` filled in.
 
 ### `InputSpec`
 
@@ -106,7 +111,7 @@ interface VersionRecord {
 }
 ```
 
-Decoded form of **`CircuitRegistry.Version`**. Returned by **`getVersion`** and inside the second element of **`getLatest`**'s return. **`publishedAt`** is converted to a **`number`** so it slots straight into **`new Date(record.publishedAt * 1000)`**.
+Decoded form of **`CircuitRegistry.Version`**. Returned by **`getVersion`** and inside the second element of **`getLatest`**'s return. **`publishedAt`** is converted to a **`number`** so it slots straight into **`new Date(record.publishedAt * 1000)`**. **`metadataURI`** doubles as the bundle locator: **`ipfs://`** / **`0g://`** prefixes name the storage backend, anything else means 0G Storage by **`rootHash`** — feed the record to **`parseBundleRef`** (see **[Networks & storage](/networks#bundle-uri-convention)**).
 
 ### `CircuitSummary`
 
@@ -152,15 +157,18 @@ interface UploadProgress {
 }
 
 interface UploadResult {
-  rootHash: string;
-  txHash: string;
-  txSeq: number;
+  rootHash: string;              // bytes32 content address to register on-chain
+  uri: string;                   // "0g://0x..." | "ipfs://Qm..."
+  backend: "0g" | "ipfs";
+  txHash?: string;               // 0G-only
+  txSeq?: number;                // 0G-only
+  finalized?: boolean;           // 0G-only
 }
 ```
 
-**`UploadStage`** walks the **`packing` -> `submitting` -> `streaming` -> `finalizing` -> `done`** path. **`UploadProgress`** is what arrives in the **`onProgress`** callback you pass to **`uploadBundle`**; **`rootHash`** appears as soon as the Merkle tree is computed (which is before the upload finishes), and **`uploadedSegments`** / **`totalSegments`** appear during **`streaming`**.
+**`UploadStage`** walks the **`packing` -> `submitting` -> `streaming` -> `finalizing` -> `done`** path on the 0G backend (**`packing` -> `submitting` -> `done`** on IPFS). **`UploadProgress`** is what arrives in the **`onProgress`** callback you pass to **`uploadBundle`**; **`rootHash`** appears as soon as the Merkle tree is computed (which is before the upload finishes), and **`uploadedSegments`** / **`totalSegments`** appear during **`streaming`**.
 
-**`UploadResult`** is the normalized return value of a successful **`uploadBundle`** call. It is what gets serialized into **`.published.json`** by the CLI.
+**`UploadResult`** is the normalized return value of a successful **`uploadBundle`** call, whichever backend ran. It is what gets serialized into **`.published.json`** by the CLI. **Breaking change in 0.4.0:** **`txHash`** and **`txSeq`** used to be required; they are now optional because IPFS uploads have no storage transaction.
 
 ### `BundleFileMap`
 
@@ -247,3 +255,33 @@ class PtauIntegrityError extends Error {
 ```
 
 Thrown by **`fetchPowersOfTau`** when the BLAKE2b-512 digest of a downloaded or cached Powers of Tau file does not match the entry in **`PTAU_BLAKE2B`**. The mismatch usually means the cached file is corrupt; delete **`filePath`** and rerun.
+
+## Environment variables
+
+The full matrix read by **`loadConfig`** (SDK) and the CLI. Per field the order is **explicit override -> generic `OGZK_*` env -> legacy `OG_*` env -> preset / built-in default**. The `OGZK_*` names are preferred since 0.4.0; every legacy `OG_*` name keeps working.
+
+| Preferred | Legacy | Purpose | Default |
+| --- | --- | --- | --- |
+| **`OGZK_NETWORK`** | **`OG_NETWORK`** | Registry chain: **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**). Unknown values **throw**. | **`0g-mainnet`** |
+| **`OGZK_RPC_URL`** | **`OG_RPC_URL`** | Registry-chain EVM RPC. | preset |
+| **`OGZK_PRIVATE_KEY`** | **`OG_PRIVATE_KEY`** | Signing key for uploads (0g backend) and registrations. | unset |
+| — | **`OG_INDEXER_URL`** | 0G Storage indexer (0g backend only). | preset for `storageNetwork` |
+| **`OGZK_STORAGE`** | — | Bundle storage backend: **`0g`** or **`ipfs`**. | **`0g`** on 0G chains, **`ipfs`** elsewhere |
+| **`OGZK_STORAGE_NETWORK`** | — | 0G chain the 0g backend signs uploads on (**`0g-mainnet`** / **`0g-testnet`**). | selected network if 0G-family, else **`0g-mainnet`** |
+| **`OGZK_IPFS_API_URL`** | — | `pinFileToIPFS`-compatible upload endpoint. | `https://api.pinata.cloud/pinning/pinFileToIPFS` |
+| **`OGZK_IPFS_API_TOKEN`** | — | Bearer token for the pinning API; required to publish via IPFS. | unset |
+| **`OGZK_IPFS_GATEWAY`** | — | HTTP gateway for IPFS fetches. | `https://ipfs.io` |
+| **`OGZK_REGISTRY_ADDRESS`** | — | Override the `CircuitRegistry` address (wins over the baked-in map). | baked-in map |
+| **`OGZK_CACHE_DIR`** | — | CLI bundle cache root. | `~/.0gzk/bundles` |
+| **`OGZK_CONFIG_DIR`** | — | CLI config directory. | `~/.0gzk` |
+
+The **web app** reads the same names, plus `NEXT_PUBLIC_OGZK_NETWORK` (legacy `NEXT_PUBLIC_OG_NETWORK`) as the client-side mirror of the network choice, `NEXT_PUBLIC_OG_EXPLORER` as an explorer override, and `OG_CHAIN_ID` to force the registry-address lookup — see [`web/.env.template`](https://github.com/0gzk/core/blob/main/web/.env.template).
+
+## Repo-level data files
+
+Two machine-readable catalogs ship at the top of the `circuits/` directory in [`0gzk/core`](https://github.com/0gzk/core):
+
+- **`circuits/publications.json`** — committed, per-chain publication records for every reference circuit: chain, chain ID, registry address, version, `rootHash`, `vkeyHash`, publisher, `metadataURI`, storage backend, and transaction details.
+- **`circuits/index.json`** — a committed, deterministically generated discovery catalog folding each circuit's `metadata.json` (including the `tags` / `keywords` / `useCases` fields), example input, constraint counts, and publication records. Regenerate with `0gzk catalog build`; CI fails when it is stale.
+
+They power the [MCP server](/mcp) and [`0gzk agent`](/agent).

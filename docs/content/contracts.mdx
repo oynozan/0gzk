@@ -1,6 +1,6 @@
 ---
 title: Contracts
-description: CircuitRegistry, IGroth16Verifier, deployed registry addresses, and how they relate to 0G Storage bundles.
+description: CircuitRegistry, IGroth16Verifier, deployed registry addresses per chain, and how they relate to stored bundles.
 ---
 
 # Contracts
@@ -13,14 +13,18 @@ Use these when you connect a wallet or **`ethers`** provider and call **`getRegi
 
 | Network | Chain ID | `CircuitRegistry` address |
 | --- | ---: | --- |
-| **Mainnet** | `16661` | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
-| **Testnet (Galileo)** | `16602` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
+| **0G mainnet** (`0g-mainnet`) | `16661` | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
+| **0G testnet (Galileo)** (`0g-testnet`) | `16602` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
+| **Base Sepolia** (`base-sepolia`) | `84532` | pending deploy |
+| **Base mainnet** (`base`) | `8453` | not deployed |
 
-Pass **`16661`** or **`16602`** into **`getRegistryContract(runner, address?, chainId)`** when you rely on baked-in defaults, or pass the **`address`** explicitly if you deployed your own registry.
+Pass the **`chainId`** into **`getRegistryContract(runner, address?, chainId)`** explicitly when you rely on baked-in defaults, or pass the **`address`** explicitly if you deployed your own registry (required on Base until the pending addresses land). The same table ships as [`registry-addresses.json`](https://github.com/0gzk/core/blob/main/packages/contracts/registry-addresses.json) in the contracts package and as `REGISTRY_ADDRESSES` in `@0gzk/sdk/onchain` — Base entries are `null` until deployed.
+
+The contract itself is **chain-agnostic and unchanged in 0.4.0** — the multi-chain and IPFS support rides entirely on the existing `metadataURI` field (see **[Networks & storage](/networks#bundle-uri-convention)**), so no redeploys were needed on 0G.
 
 ## `CircuitRegistry`
 
-**Purpose:** An **index**, not a vault. It maps human-friendly circuit names to **immutable version records** that point at 0G Storage.
+**Purpose:** An **index**, not a vault. It maps human-friendly circuit names to **immutable version records** that point at content-addressed storage (0G Storage or IPFS, distinguished by the record's `metadataURI`).
 
 ### Types you should know
 
@@ -38,7 +42,7 @@ Pass **`16661`** or **`16602`** into **`getRegistryContract(runner, address?, ch
 
 When you read a registry record:
 
-1. Use **`rootHash`** to fetch the tarball from **0G Storage**.
+1. Route on **`metadataURI`** (**`ipfs://...`** → IPFS gateway, otherwise **0G Storage** by **`rootHash`** — **`parseBundleRef`** in the SDK implements the rule) and fetch the tarball.
 2. Recompute **`keccak256(canonical verification_key.json)`** and compare to **`vkeyHash`**.
 3. Optionally call **`IGroth16Verifier.verifyProof`** on the stored **`verifier`** address.
 
@@ -69,6 +73,25 @@ forge build
 forge test
 ```
 
-Deploy scripts for **`mainnet`** and **`galileo`** live in `package.json` (**`deploy:mainnet`**, **`deploy:galileo`**). Run them only with keys and RPC endpoints you control.
+### Deploy scripts
+
+`package.json` carries one script per target: **`deploy:mainnet`**, **`deploy:galileo`**, **`deploy:base`**, **`deploy:base-sepolia`**, and **`deploy:base-sepolia:verify`** (the last also verifies the source on Basescan). Run them only with keys and RPC endpoints you control.
+
+`Deploy.s.sol` reads the broadcaster key from **`DEPLOYER_PRIVATE_KEY`** first, falling back to the legacy **`OG_PRIVATE_KEY`**:
+
+```bash
+# 0G chains: the rpc_endpoints for `mainnet` / `galileo` expand ${OG_RPC_URL}.
+export OG_RPC_URL=https://evmrpc.0g.ai
+export OG_PRIVATE_KEY=0x<funded_key>
+pnpm --filter @0gzk/contracts deploy:mainnet
+
+# Base chains: fixed public RPCs in foundry.toml; Basescan verification needs
+# a BASESCAN_API_KEY (wired via the [etherscan] section of foundry.toml).
+export DEPLOYER_PRIVATE_KEY=0x<funded_base_key>
+export BASESCAN_API_KEY=<key>            # only for the :verify variant
+pnpm --filter @0gzk/contracts deploy:base-sepolia:verify
+```
+
+After a deploy, record the printed address in `registry-addresses.json` under the chain ID so the SDK and CLI can resolve it automatically.
 
 **Source:** [`CircuitRegistry.sol`](https://github.com/0gzk/core/blob/main/packages/contracts/src/CircuitRegistry.sol), [`IGroth16Verifier.sol`](https://github.com/0gzk/core/blob/main/packages/contracts/src/IGroth16Verifier.sol).

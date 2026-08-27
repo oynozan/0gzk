@@ -12,15 +12,22 @@ import {
   parseNameSpec,
 } from "@0gzk/sdk/onchain";
 
+// Works against any chain carrying a CircuitRegistry. Defaults target 0G
+// Galileo; for Base Sepolia set e.g.
+//   OG_RPC_URL=https://sepolia.base.org OG_CHAIN_ID=84532 \
+//   OG_EXPLORER=https://sepolia.basescan.org node resolve.mjs age_verification
 const RPC_URL = process.env.OG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
 const EXPLORER = process.env.OG_EXPLORER ?? "https://chainscan-galileo.0g.ai";
 const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
+const CHAIN_ID = process.env.OG_CHAIN_ID ? Number(process.env.OG_CHAIN_ID) : undefined;
 
 const spec = process.argv[2] ?? "poseidon_preimage";
 const parsed = parseNameSpec(spec);
 
 const provider = new JsonRpcProvider(RPC_URL);
-const registry = getRegistryContract(provider, REGISTRY);
+const registry = CHAIN_ID
+  ? getRegistryContract(provider, REGISTRY, CHAIN_ID)
+  : getRegistryContract(provider, REGISTRY);
 
 const { version, record } = parsed.version
   ? { version: parsed.version, record: await getVersion(registry, parsed.name, parsed.version) }
