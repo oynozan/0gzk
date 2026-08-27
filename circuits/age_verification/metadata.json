@@ -2,6 +2,16 @@
   "name": "age_verification",
   "version": "0.1.0",
   "description": "Proves user age >= minAge without revealing birthYear",
+  "tags": [
+    "identity",
+    "age",
+    "comparison",
+    "kyc"
+  ],
+  "useCases": [
+    "Gate an 18+ product without collecting date of birth",
+    "Prove age eligibility to a KYC flow while keeping the birth year private"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

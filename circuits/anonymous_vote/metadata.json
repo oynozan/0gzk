@@ -2,6 +2,16 @@
   "name": "anonymous_vote",
   "version": "0.1.0",
   "description": "Cast a private vote in {0..7} as a member of a depth-16 Poseidon Merkle tree of eligible voters; emit a per-(voter, ballot) nullifier so each voter votes at most once",
+  "tags": [
+    "voting",
+    "nullifier",
+    "merkle",
+    "governance"
+  ],
+  "useCases": [
+    "One-person-one-vote ballots where the voter stays anonymous",
+    "DAO governance votes with double-vote protection via nullifiers"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

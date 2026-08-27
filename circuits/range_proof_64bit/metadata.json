@@ -2,6 +2,15 @@
   "name": "range_proof_64bit",
   "version": "0.1.0",
   "description": "Canonical 64-bit range proof: prove a private value x in [0, 2^64) that opens a public Poseidon commitment. Designed to be reused as a building block",
+  "tags": [
+    "range",
+    "comparison",
+    "numeric"
+  ],
+  "useCases": [
+    "Prove a committed value fits in 64 bits and within a range",
+    "Reusable range constraint for financial circuits"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

@@ -2,6 +2,16 @@
   "name": "unique_human_nullifier",
   "version": "0.1.0",
   "description": "Proof of personhood: prove your private secret is in a depth-16 Poseidon Merkle tree of registered humans, and emit a deterministic per-app nullifier so the same human can perform the gated action at most once per app",
+  "tags": [
+    "identity",
+    "sybil",
+    "nullifier",
+    "personhood"
+  ],
+  "useCases": [
+    "One-account-per-person signups resistant to sybil attacks",
+    "Derive an app-scoped nullifier from a personhood credential"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

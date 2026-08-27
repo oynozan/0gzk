@@ -2,6 +2,17 @@
   "name": "private_balance_threshold",
   "version": "0.1.0",
   "description": "Proves a private balance is at least a public threshold, anchored to a public Poseidon commitment of (balance, salt)",
+  "tags": [
+    "finance",
+    "balance",
+    "threshold",
+    "commitment",
+    "kyc"
+  ],
+  "useCases": [
+    "Prove a balance clears a minimum without revealing the amount",
+    "Collateral checks for lending flows with private balances"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

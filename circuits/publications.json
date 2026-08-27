@@ -1,0 +1,149 @@
+{
+  "age_verification": [
+    {
+      "chain": "0g-mainnet",
+      "chainId": 16661,
+      "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+      "version": "0.1.0",
+      "rootHash": "0xdcc19461dd1f289e5227af3f0a9c60f94c0a33835b3011a30f96ce62cb2cc51b",
+      "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://age_verification@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": 100370,
+      "registryTxHash": "0x503378a11520cc1cb2cad302aab1137cdc234b5f2b871ec3af29541901608d8c",
+      "publishedAt": "2026-05-13T20:05:34.000Z"
+    },
+    {
+      "chain": "0g-testnet",
+      "chainId": 16602,
+      "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+      "version": "0.1.0",
+      "rootHash": "0x56a3a18f4c2c5b1700c85ea6c5bc3dce8707452160bbe0c5923c94ac781395f0",
+      "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://age_verification@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": null,
+      "registryTxHash": null,
+      "publishedAt": "2026-05-10T06:26:25.000Z"
+    }
+  ],
+  "country_allowlist": [
+    {
+      "chain": "0g-mainnet",
+      "chainId": 16661,
+      "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+      "version": "0.1.0",
+      "rootHash": "0xba8ad6c1b39060d6f783388a1662fedc5f7cde661b52328a9ffd9c82ad64db30",
+      "vkeyHash": "0xe57db603892a78c7dac45b5ebcd9a9afd8349d62c17f5cc9994ebd66558c054c",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://country_allowlist@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": null,
+      "registryTxHash": "0x004b7fdbcf14c0edd6094d498ce1bef0f3990055d4ec03a6ae94f3985f70e189",
+      "publishedAt": "2026-05-16T02:01:19.000Z"
+    }
+  ],
+  "merkle_membership": [
+    {
+      "chain": "0g-mainnet",
+      "chainId": 16661,
+      "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+      "version": "0.1.0",
+      "rootHash": "0xdd313a1ba8437ec74140bcd5d6cbc54eb884ffcec3215e1a85bed360693f5ef2",
+      "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://merkle_membership@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": 101121,
+      "registryTxHash": "0xba8746311aa28711550006ff7e18002ded411c769b2df09ec4442ed207ac0758",
+      "publishedAt": "2026-05-14T17:56:07.000Z"
+    },
+    {
+      "chain": "0g-testnet",
+      "chainId": 16602,
+      "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+      "version": "0.1.0",
+      "rootHash": "0x5f8fe9056f9f2bf35d76dbe7280503b212ab3c3ed11e07c724b6b271bd40ccd5",
+      "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://merkle_membership@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": null,
+      "registryTxHash": null,
+      "publishedAt": "2026-05-11T08:38:37.000Z"
+    }
+  ],
+  "poseidon_preimage": [
+    {
+      "chain": "0g-mainnet",
+      "chainId": 16661,
+      "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+      "version": "0.1.0",
+      "rootHash": "0x7575f28d3b035f66654e65d2d8ea573b0ee6a66d789bd1472d309016c309eb09",
+      "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://poseidon_preimage@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": 100957,
+      "registryTxHash": null,
+      "publishedAt": "2026-05-14T14:37:13.000Z"
+    },
+    {
+      "chain": "0g-testnet",
+      "chainId": 16602,
+      "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+      "version": "0.1.0",
+      "rootHash": "0x67035d88e2236ddf39a2d746e9054d7d124b56f6ecf9c4e0ab3f75e3704442ba",
+      "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://poseidon_preimage@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": null,
+      "registryTxHash": null,
+      "publishedAt": "2026-05-11T09:25:58.000Z"
+    }
+  ],
+  "private_balance_threshold": [
+    {
+      "chain": "0g-testnet",
+      "chainId": 16602,
+      "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+      "version": "0.1.0",
+      "rootHash": "0x35d357c850abb710a71a80af16ee529894cf9b0c68484e30e83206ecafbe374b",
+      "vkeyHash": "0x1261b3abbb22f8e8f08af014c77c44a9f13af4571f9ffca4702e2e90b26222fd",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://private_balance_threshold@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": 103268,
+      "registryTxHash": "0x2c247830cffed1dbfca8ac1ba8e108b189e9aa96c51e156dd496b2ec1485bd51",
+      "publishedAt": "2026-05-11T09:26:48.000Z"
+    }
+  ],
+  "unique_human_nullifier": [
+    {
+      "chain": "0g-mainnet",
+      "chainId": 16661,
+      "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+      "version": "0.1.0",
+      "rootHash": "0xdb58fc9d9059f6f658cbca88e76cd24e04579455208dd190eb8b8983b102a66e",
+      "vkeyHash": "0xa16e35d413f20548bd644a0cbaf05ee1426b9cd9fea9bf93d750a40210e83a88",
+      "verifier": "0x0000000000000000000000000000000000000000",
+      "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+      "metadataURI": "0gzk://unique_human_nullifier@0.1.0",
+      "storage": "0g-storage",
+      "storageTxSeq": 102563,
+      "registryTxHash": "0x754719f5d6163eb930df38b37ac54371647dfbc069060109295eb8a24adb0556",
+      "publishedAt": "2026-05-16T01:55:19.000Z"
+    }
+  ]
+}

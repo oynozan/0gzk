@@ -1,0 +1,1235 @@
+{
+  "schemaVersion": 1,
+  "circuits": [
+    {
+      "name": "age_verification",
+      "version": "0.1.0",
+      "description": "Proves user age >= minAge without revealing birthYear",
+      "tags": [
+        "identity",
+        "age",
+        "comparison",
+        "kyc"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Gate an 18+ product without collecting date of birth",
+        "Prove age eligibility to a KYC flow while keeping the birth year private"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "birthYear": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "User's birth year (e.g., 1990)"
+        },
+        "currentYear": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Current calendar year"
+        },
+        "minAge": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Minimum required age"
+        }
+      },
+      "outputs": {
+        "isAdult": {
+          "type": "bool",
+          "description": "1 if age >= minAge, else 0"
+        }
+      },
+      "exampleInput": {
+        "birthYear": 1990,
+        "currentYear": 2026,
+        "minAge": 18
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 14,
+        "nPubIn": 2,
+        "nPrvIn": 1,
+        "nPubOut": 1,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-mainnet",
+          "chainId": 16661,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xdcc19461dd1f289e5227af3f0a9c60f94c0a33835b3011a30f96ce62cb2cc51b",
+          "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://age_verification@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": 100370,
+          "registryTxHash": "0x503378a11520cc1cb2cad302aab1137cdc234b5f2b871ec3af29541901608d8c",
+          "publishedAt": "2026-05-13T20:05:34.000Z"
+        },
+        {
+          "chain": "0g-testnet",
+          "chainId": 16602,
+          "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+          "version": "0.1.0",
+          "rootHash": "0x56a3a18f4c2c5b1700c85ea6c5bc3dce8707452160bbe0c5923c94ac781395f0",
+          "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://age_verification@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": null,
+          "registryTxHash": null,
+          "publishedAt": "2026-05-10T06:26:25.000Z"
+        }
+      ],
+      "dir": "circuits/age_verification"
+    },
+    {
+      "name": "anonymous_vote",
+      "version": "0.1.0",
+      "description": "Cast a private vote in {0..7} as a member of a depth-16 Poseidon Merkle tree of eligible voters; emit a per-(voter, ballot) nullifier so each voter votes at most once",
+      "tags": [
+        "voting",
+        "nullifier",
+        "merkle",
+        "governance"
+      ],
+      "keywords": [],
+      "useCases": [
+        "One-person-one-vote ballots where the voter stays anonymous",
+        "DAO governance votes with double-vote protection via nullifiers"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "voterSecret": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Voter's secret. leaf = Poseidon(voterSecret) lives in the voters tree"
+        },
+        "pathElements": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Sibling hashes from leaf to root, bottom-up",
+          "length": 16
+        },
+        "pathIndices": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up",
+          "length": 16
+        },
+        "vote": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Chosen option, in [0, 8). Re-emitted as the public output revealedVote"
+        },
+        "votersRoot": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Public Merkle root of all eligible voters"
+        },
+        "ballotId": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Identifier of this ballot. Namespaces the nullifier so voters can re-vote in future ballots"
+        }
+      },
+      "outputs": {
+        "nullifier": {
+          "type": "field",
+          "description": "Poseidon(voterSecret, ballotId). Tally contract must reject duplicates"
+        },
+        "revealedVote": {
+          "type": "uint",
+          "description": "The vote in {0..7}, exposed publicly so the tally contract can count it"
+        }
+      },
+      "exampleInput": {
+        "voterSecret": "700700",
+        "pathElements": [
+          "6089164006278979997064988404053639565226149319626268946296635412467235768175",
+          "506952089557660611143169613371890445783724292566211651668393617728459486427",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "pathIndices": [
+          "1",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "vote": "3",
+        "votersRoot": "3934619366630874965860335563870061643248578485475646191944741956896995278791",
+        "ballotId": "20260520"
+      },
+      "ptauSize": 14,
+      "constraints": {
+        "count": 9273,
+        "nPubIn": 2,
+        "nPrvIn": 34,
+        "nPubOut": 2,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/anonymous_vote"
+    },
+    {
+      "name": "country_allowlist",
+      "version": "0.1.0",
+      "description": "Prove your committed country code is one of the countries in a depth-8 Poseidon Merkle allowlist, without revealing which",
+      "tags": [
+        "identity",
+        "geo",
+        "allowlist",
+        "merkle",
+        "compliance"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove residency in an allowed country without revealing which one",
+        "Geo-compliance gates for regulated products"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "countryCode": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Numeric country code (e.g. ISO 3166-1 numeric)"
+        },
+        "salt": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Random salt that hides the country in the public commitment"
+        },
+        "pathElements": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Sibling hashes on the way from leaf to root, bottom-up",
+          "length": 8
+        },
+        "pathIndices": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up",
+          "length": 8
+        },
+        "commitment": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Poseidon(countryCode, salt). Pre-committed so the holder cannot change country mid-flight"
+        },
+        "allowlistRoot": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Merkle root of allowed countries (leaf = Poseidon(countryCode))"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "countryCode": "840",
+        "salt": "31337",
+        "pathElements": [
+          "9710217027214483202139590452890609970560107610569316967439823555040494911899",
+          "18212887040975932974586943455041036496237593221535955555839133826070902505463",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "pathIndices": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "commitment": "630943424664710112500129322275161096192843093518061567521643309548161762785",
+        "allowlistRoot": "175283853562463571483878187103320459746025976092919300581031077629158484687"
+      },
+      "ptauSize": 13,
+      "constraints": {
+        "count": 5092,
+        "nPubIn": 2,
+        "nPrvIn": 18,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-mainnet",
+          "chainId": 16661,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xba8ad6c1b39060d6f783388a1662fedc5f7cde661b52328a9ffd9c82ad64db30",
+          "vkeyHash": "0xe57db603892a78c7dac45b5ebcd9a9afd8349d62c17f5cc9994ebd66558c054c",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://country_allowlist@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": null,
+          "registryTxHash": "0x004b7fdbcf14c0edd6094d498ce1bef0f3990055d4ec03a6ae94f3985f70e189",
+          "publishedAt": "2026-05-16T02:01:19.000Z"
+        }
+      ],
+      "dir": "circuits/country_allowlist"
+    },
+    {
+      "name": "eddsa_credential_check",
+      "version": "0.1.0",
+      "description": "Verifies an issuer's Baby Jubjub EdDSA signature over Poseidon(subject, claim) without revealing the subject; emits a per-context nullifier",
+      "tags": [
+        "credential",
+        "signature",
+        "eddsa",
+        "identity"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove possession of an issuer-signed credential without showing it",
+        "Selective disclosure of verified attributes"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "subject": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Holder identity that the issuer signed off on"
+        },
+        "claim": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Public statement the issuer attested to (e.g. Poseidon(\"isAdult\"))"
+        },
+        "issuerAx": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Baby Jubjub x coordinate of the issuer's public key"
+        },
+        "issuerAy": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Baby Jubjub y coordinate of the issuer's public key"
+        },
+        "sigS": {
+          "type": "field",
+          "visibility": "private",
+          "description": "EdDSA signature scalar"
+        },
+        "sigR8x": {
+          "type": "field",
+          "visibility": "private",
+          "description": "EdDSA signature R point x"
+        },
+        "sigR8y": {
+          "type": "field",
+          "visibility": "private",
+          "description": "EdDSA signature R point y"
+        },
+        "contextId": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Application / session identifier; namespaces the nullifier"
+        }
+      },
+      "outputs": {
+        "nullifier": {
+          "type": "field",
+          "description": "Poseidon(subject, contextId). Use to detect credential reuse"
+        }
+      },
+      "exampleInput": {
+        "subject": "4242",
+        "claim": "7061949393491957813657776856458368574501817871421526214197139795307327923534",
+        "issuerAx": "6009826206664631762425195104551483519464780417855034312675013183895652229081",
+        "issuerAy": "10734004088266146241393102410697198390225666634906567834302254376371681698208",
+        "sigS": "2478320731205338793827507523368229856250050219617655626022710974232918154038",
+        "sigR8x": "20402006407314447204832711895567450792802096831393641998404286673232794333259",
+        "sigR8y": "3547471681319223484422072332022046000998490301718017374458273722800741377562",
+        "contextId": "12345"
+      },
+      "ptauSize": 15,
+      "constraints": {
+        "count": 9120,
+        "nPubIn": 4,
+        "nPrvIn": 4,
+        "nPubOut": 1,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/eddsa_credential_check"
+    },
+    {
+      "name": "geofence_proof",
+      "version": "0.1.0",
+      "description": "Prove a private (lat, lng) lies inside a public rectangular bounding box without revealing the exact point. Coordinates use 32-bit fixed-point: lat = round((lat_deg + 90) * 1e6), lng = round((lng_deg + 180) * 1e6)",
+      "tags": [
+        "geo",
+        "location",
+        "range",
+        "privacy"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove presence inside a geographic bounding box without exact coordinates",
+        "Location-gated drops that never learn where the user is"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "lat": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Encoded latitude (round((lat_deg + 90) * 1e6))"
+        },
+        "lng": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Encoded longitude (round((lng_deg + 180) * 1e6))"
+        },
+        "latMin": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive minimum encoded latitude of the geofence"
+        },
+        "latMax": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive maximum encoded latitude of the geofence"
+        },
+        "lngMin": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive minimum encoded longitude of the geofence"
+        },
+        "lngMax": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive maximum encoded longitude of the geofence"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "lat": "127774900",
+        "lng": "57580600",
+        "latMin": "127000000",
+        "latMax": "128500000",
+        "lngMin": "57000000",
+        "lngMax": "58500000"
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 346,
+        "nPubIn": 4,
+        "nPrvIn": 2,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/geofence_proof"
+    },
+    {
+      "name": "hidden_bid_validity",
+      "version": "0.1.0",
+      "description": "Sealed-bid auction primitive: prove a private bid opens a public Poseidon commitment and is within a published [minBid, maxBid] range",
+      "tags": [
+        "auction",
+        "bid",
+        "range",
+        "commitment"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Sealed-bid auctions: prove a bid is within bounds without revealing it",
+        "Commit-reveal bidding with validity guarantees"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "bid": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Bidder's amount (constrained to 64 bits)"
+        },
+        "salt": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Random salt that hides the bid in the commitment"
+        },
+        "commitment": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Poseidon(bid, salt) published before the auction reveal phase"
+        },
+        "minBid": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive lower bound the bid must satisfy"
+        },
+        "maxBid": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Inclusive upper bound the bid must satisfy"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "bid": "5000",
+        "salt": "24680",
+        "commitment": "16278733584922623196344559548904543029263105484069278110311445176554141081379",
+        "minBid": "1000",
+        "maxBid": "10000"
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 850,
+        "nPubIn": 3,
+        "nPrvIn": 2,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/hidden_bid_validity"
+    },
+    {
+      "name": "merkle_membership",
+      "version": "0.1.0",
+      "description": "Proves a private leaf is included in a public Poseidon-2 Merkle tree of depth 8 without revealing the leaf or its path",
+      "tags": [
+        "merkle",
+        "membership",
+        "allowlist",
+        "poseidon"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove an address is on an allowlist without revealing which entry",
+        "Anonymous group membership checks against a published Merkle root"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "leaf": {
+          "type": "field",
+          "visibility": "private",
+          "description": "The secret leaf whose inclusion is being proven"
+        },
+        "pathElements": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Sibling hashes along the path from leaf to root, bottom-up",
+          "length": 8
+        },
+        "pathIndices": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-level direction bits (0 = leaf is left child, 1 = leaf is right child), bottom-up",
+          "length": 8
+        },
+        "root": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Public Merkle root the leaf claims membership in"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "leaf": "42",
+        "pathElements": [
+          "5",
+          "19419916100242727769718322657520778503680617689214632373938093157277816551712",
+          "3330844108758711782672220159612173083623710937399719017074673646455206473965",
+          "14888979664003708571660847718791296103112999134302095820460705268575071148941",
+          "9939113045095121889354854682572652954047275641959771961210482519768730471241",
+          "19282015628922127800480820555547397056353015449753758267095927079286904767653",
+          "3650329808845676617764212353297381125697956474661841334799419125850451469150",
+          "7051805641122928685964058716182123573006631027764007689791632256884911984669"
+        ],
+        "pathIndices": [
+          "1",
+          "0",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "root": "19519582416836444743729137301235125288748221689739202679275011757490027208126"
+      },
+      "ptauSize": 13,
+      "constraints": {
+        "count": 4160,
+        "nPubIn": 1,
+        "nPrvIn": 17,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-mainnet",
+          "chainId": 16661,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xdd313a1ba8437ec74140bcd5d6cbc54eb884ffcec3215e1a85bed360693f5ef2",
+          "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://merkle_membership@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": 101121,
+          "registryTxHash": "0xba8746311aa28711550006ff7e18002ded411c769b2df09ec4442ed207ac0758",
+          "publishedAt": "2026-05-14T17:56:07.000Z"
+        },
+        {
+          "chain": "0g-testnet",
+          "chainId": 16602,
+          "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+          "version": "0.1.0",
+          "rootHash": "0x5f8fe9056f9f2bf35d76dbe7280503b212ab3c3ed11e07c724b6b271bd40ccd5",
+          "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://merkle_membership@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": null,
+          "registryTxHash": null,
+          "publishedAt": "2026-05-11T08:38:37.000Z"
+        }
+      ],
+      "dir": "circuits/merkle_membership"
+    },
+    {
+      "name": "poseidon_preimage",
+      "version": "0.1.0",
+      "description": "Proves knowledge of a field element x such that Poseidon([x]) == hash",
+      "tags": [
+        "hash",
+        "poseidon",
+        "preimage",
+        "commitment"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove knowledge of a committed secret without revealing it",
+        "Smallest possible building block for commit-reveal schemes"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "preimage": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Secret preimage; any element of the bn128 scalar field"
+        },
+        "hash": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Poseidon([preimage]) — the public commitment being opened"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "preimage": "1",
+        "hash": "18586133768512220936620570745912940619677854269274689475585506675881198879027"
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 415,
+        "nPubIn": 1,
+        "nPrvIn": 1,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-mainnet",
+          "chainId": 16661,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x7575f28d3b035f66654e65d2d8ea573b0ee6a66d789bd1472d309016c309eb09",
+          "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://poseidon_preimage@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": 100957,
+          "registryTxHash": null,
+          "publishedAt": "2026-05-14T14:37:13.000Z"
+        },
+        {
+          "chain": "0g-testnet",
+          "chainId": 16602,
+          "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+          "version": "0.1.0",
+          "rootHash": "0x67035d88e2236ddf39a2d746e9054d7d124b56f6ecf9c4e0ab3f75e3704442ba",
+          "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://poseidon_preimage@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": null,
+          "registryTxHash": null,
+          "publishedAt": "2026-05-11T09:25:58.000Z"
+        }
+      ],
+      "dir": "circuits/poseidon_preimage"
+    },
+    {
+      "name": "private_balance_threshold",
+      "version": "0.1.0",
+      "description": "Proves a private balance is at least a public threshold, anchored to a public Poseidon commitment of (balance, salt)",
+      "tags": [
+        "finance",
+        "balance",
+        "threshold",
+        "commitment",
+        "kyc"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove a balance clears a minimum without revealing the amount",
+        "Collateral checks for lending flows with private balances"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "balance": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Account balance in any 64-bit denominated unit"
+        },
+        "salt": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Random salt mixed into the commitment to prevent rainbow attacks"
+        },
+        "commitment": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Poseidon([balance, salt]) — the public anchor"
+        },
+        "threshold": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Public threshold the prover claims their balance is at least equal to"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "balance": "1000000",
+        "salt": "12345",
+        "commitment": "9234216329725396764564263467186562171366095637085775062683540012292486796439",
+        "threshold": "100000"
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 716,
+        "nPubIn": 2,
+        "nPrvIn": 2,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-testnet",
+          "chainId": 16602,
+          "registry": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
+          "version": "0.1.0",
+          "rootHash": "0x35d357c850abb710a71a80af16ee529894cf9b0c68484e30e83206ecafbe374b",
+          "vkeyHash": "0x1261b3abbb22f8e8f08af014c77c44a9f13af4571f9ffca4702e2e90b26222fd",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://private_balance_threshold@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": 103268,
+          "registryTxHash": "0x2c247830cffed1dbfca8ac1ba8e108b189e9aa96c51e156dd496b2ec1485bd51",
+          "publishedAt": "2026-05-11T09:26:48.000Z"
+        }
+      ],
+      "dir": "circuits/private_balance_threshold"
+    },
+    {
+      "name": "private_transfer",
+      "version": "0.1.0",
+      "description": "Tornado-style shielded spend: prove a Poseidon commitment is in a depth-16 Merkle tree of UTXOs, emit a single-use nullifier, bound to a public recipient address",
+      "tags": [
+        "payments",
+        "transfer",
+        "nullifier",
+        "poseidon"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Shielded value transfer with balance conservation",
+        "Private payment notes with double-spend protection"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "secret": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Spending key half: leaf = Poseidon(secret, nullifierSeed)"
+        },
+        "nullifierSeed": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Single-use seed; nullifier = Poseidon(nullifierSeed)"
+        },
+        "pathElements": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Sibling hashes from leaf to root, bottom-up",
+          "length": 16
+        },
+        "pathIndices": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up",
+          "length": 16
+        },
+        "root": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Public Merkle root of all live UTXO commitments"
+        },
+        "recipient": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Recipient address packed into a field element. Bound into the proof to prevent withdraw-front-running"
+        }
+      },
+      "outputs": {
+        "nullifier": {
+          "type": "field",
+          "description": "Poseidon(nullifierSeed). Contract must reject duplicates"
+        }
+      },
+      "exampleInput": {
+        "secret": "9876543",
+        "nullifierSeed": "555",
+        "pathElements": [
+          "1979475358490882782695234604362398132934050455360496620085373760138828661113",
+          "5903205309316973943535550042150768263809469060693271622770717961452492910896",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "pathIndices": [
+          "1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "root": "3989000792138419518198659158665984336126353940940527007954401157011834200534",
+        "recipient": "202374891"
+      },
+      "ptauSize": 14,
+      "constraints": {
+        "count": 9253,
+        "nPubIn": 2,
+        "nPrvIn": 34,
+        "nPubOut": 1,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/private_transfer"
+    },
+    {
+      "name": "range_proof_64bit",
+      "version": "0.1.0",
+      "description": "Canonical 64-bit range proof: prove a private value x in [0, 2^64) that opens a public Poseidon commitment. Designed to be reused as a building block",
+      "tags": [
+        "range",
+        "comparison",
+        "numeric"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove a committed value fits in 64 bits and within a range",
+        "Reusable range constraint for financial circuits"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "x": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Value being range-checked (must fit in 64 bits)"
+        },
+        "salt": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Random salt that hides x in the public commitment"
+        },
+        "commitment": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Poseidon(x, salt) anchored on-chain or in a registry"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "x": "1000000",
+        "salt": "13579",
+        "commitment": "7964016235711587920446916352520924192613148033235017305248512674496969315557"
+      },
+      "ptauSize": 12,
+      "constraints": {
+        "count": 582,
+        "nPubIn": 1,
+        "nPrvIn": 2,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/range_proof_64bit"
+    },
+    {
+      "name": "sha256_preimage_short",
+      "version": "0.1.0",
+      "description": "Prove SHA256(preimage) == hash for a fixed 32-byte preimage. Both preimage and digest are split into two 128-bit halves so they fit in BN128 field elements; this matches Solidity's bytes32 layout",
+      "tags": [
+        "hash",
+        "sha256",
+        "preimage"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove knowledge of a SHA-256 preimage without revealing it",
+        "Bridge commitments from SHA-256-based systems into ZK"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "preimageHigh": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Most-significant 128 bits of the 32-byte preimage"
+        },
+        "preimageLow": {
+          "type": "uint",
+          "visibility": "private",
+          "description": "Least-significant 128 bits of the 32-byte preimage"
+        },
+        "hashHigh": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Most-significant 128 bits of the SHA256 digest"
+        },
+        "hashLow": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Least-significant 128 bits of the SHA256 digest"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "preimageHigh": "64340233319549142045910121998234902894",
+        "preimageLow": "129529495200315525667936021581904555568",
+        "hashHigh": "57971760199971627634996562247835877479",
+        "hashLow": "234500551698807030558431062597311826011"
+      },
+      "ptauSize": 16,
+      "constraints": {
+        "count": 31780,
+        "nPubIn": 2,
+        "nPrvIn": 2,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/sha256_preimage_short"
+    },
+    {
+      "name": "solvency_attestation",
+      "version": "0.1.0",
+      "description": "N=16 proof of reserves: prove sum of 16 Poseidon-committed balances meets a public threshold, without revealing individual balances",
+      "tags": [
+        "finance",
+        "solvency",
+        "threshold",
+        "attestation"
+      ],
+      "keywords": [],
+      "useCases": [
+        "Prove assets exceed liabilities without publishing the books",
+        "Exchange proof-of-solvency attestations"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "balances": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-account balances (each constrained to 64 bits)",
+          "length": 16
+        },
+        "salts": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Random salt for each commitment",
+          "length": 16
+        },
+        "commitments": {
+          "type": "field[]",
+          "visibility": "public",
+          "description": "Per-account Poseidon([balance, salt]) commitments published in advance",
+          "length": 16
+        },
+        "threshold": {
+          "type": "uint",
+          "visibility": "public",
+          "description": "Required minimum sum of balances (constrained to 64 bits)"
+        }
+      },
+      "outputs": {},
+      "exampleInput": {
+        "balances": [
+          "100000",
+          "100007",
+          "100014",
+          "100021",
+          "100028",
+          "100035",
+          "100042",
+          "100049",
+          "100056",
+          "100063",
+          "100070",
+          "100077",
+          "100084",
+          "100091",
+          "100098",
+          "100105"
+        ],
+        "salts": [
+          "1000",
+          "1001",
+          "1002",
+          "1003",
+          "1004",
+          "1005",
+          "1006",
+          "1007",
+          "1008",
+          "1009",
+          "1010",
+          "1011",
+          "1012",
+          "1013",
+          "1014",
+          "1015"
+        ],
+        "commitments": [
+          "3096276071958069285502843234422540970218456767208692768805142088246535556327",
+          "2788225527139374114748118182216747085922578037727033834235897827745479972538",
+          "11621226391838914529628964890894822232159135649324337382146106144147769044625",
+          "826255692792047746595391031305409643849523566510242185711834278561609230412",
+          "15535263346697144118945371146098989020473612719500783260998868874353319581773",
+          "10959263179790568565804895090560366532212313519157186174284169320549742833179",
+          "13234765269148380612088476364406284532495622289660800341600125680404177597015",
+          "3239631431276389213270645109509197677469282933309685085743946176525422608125",
+          "19103971102627024074181862726113553021214612274717258237345075445600833209286",
+          "19221937320934660905198632710195127547894184723298029479737397696532409958247",
+          "9315158683343984374453351902186871580723054032066582446690467091749797803028",
+          "11026936634405697117600489660065789940971835535515302975355309136171565193720",
+          "6483715559096999922515703348605212171399349251515807885090219887629372295993",
+          "1884314933811185690803265752257724489461473298525109492698385672542063321449",
+          "12858056747574856391632457964152605065369557391782054572876263486658553953924",
+          "1097481226815004164505672668329725397931090969548720890677837023642871765879"
+        ],
+        "threshold": "1599840"
+      },
+      "ptauSize": 14,
+      "constraints": {
+        "count": 9455,
+        "nPubIn": 17,
+        "nPrvIn": 32,
+        "nPubOut": 0,
+        "source": "r1cs-header"
+      },
+      "publications": [],
+      "dir": "circuits/solvency_attestation"
+    },
+    {
+      "name": "unique_human_nullifier",
+      "version": "0.1.0",
+      "description": "Proof of personhood: prove your private secret is in a depth-16 Poseidon Merkle tree of registered humans, and emit a deterministic per-app nullifier so the same human can perform the gated action at most once per app",
+      "tags": [
+        "identity",
+        "sybil",
+        "nullifier",
+        "personhood"
+      ],
+      "keywords": [],
+      "useCases": [
+        "One-account-per-person signups resistant to sybil attacks",
+        "Derive an app-scoped nullifier from a personhood credential"
+      ],
+      "protocol": "groth16",
+      "curve": "bn128",
+      "inputs": {
+        "secret": {
+          "type": "field",
+          "visibility": "private",
+          "description": "Holder's secret. leaf = Poseidon(secret) lives in the registered-humans tree"
+        },
+        "pathElements": {
+          "type": "field[]",
+          "visibility": "private",
+          "description": "Sibling hashes from leaf to root, bottom-up",
+          "length": 16
+        },
+        "pathIndices": {
+          "type": "uint[]",
+          "visibility": "private",
+          "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up",
+          "length": 16
+        },
+        "humansRoot": {
+          "type": "field",
+          "visibility": "public",
+          "description": "Public Merkle root of all registered humans"
+        },
+        "appId": {
+          "type": "field",
+          "visibility": "public",
+          "description": "App / context identifier; the nullifier is namespaced by it"
+        }
+      },
+      "outputs": {
+        "nullifier": {
+          "type": "field",
+          "description": "Poseidon(secret, appId). Spend once per app to prevent Sybil"
+        }
+      },
+      "exampleInput": {
+        "secret": "1234567",
+        "pathElements": [
+          "944210591924524960699367252385025357816569597760145946972314960597502103370",
+          "506952089557660611143169613371890445783724292566211651668393617728459486427",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "pathIndices": [
+          "0",
+          "1",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "humansRoot": "15247921502923702585987729035961528696046625865709644800705529241833777612542",
+        "appId": "99"
+      },
+      "ptauSize": 14,
+      "constraints": {
+        "count": 9252,
+        "nPubIn": 2,
+        "nPrvIn": 33,
+        "nPubOut": 1,
+        "source": "r1cs-header"
+      },
+      "publications": [
+        {
+          "chain": "0g-mainnet",
+          "chainId": 16661,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xdb58fc9d9059f6f658cbca88e76cd24e04579455208dd190eb8b8983b102a66e",
+          "vkeyHash": "0xa16e35d413f20548bd644a0cbaf05ee1426b9cd9fea9bf93d750a40210e83a88",
+          "verifier": "0x0000000000000000000000000000000000000000",
+          "publisher": "0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7",
+          "metadataURI": "0gzk://unique_human_nullifier@0.1.0",
+          "storage": "0g-storage",
+          "storageTxSeq": 102563,
+          "registryTxHash": "0x754719f5d6163eb930df38b37ac54371647dfbc069060109295eb8a24adb0556",
+          "publishedAt": "2026-05-16T01:55:19.000Z"
+        }
+      ],
+      "dir": "circuits/unique_human_nullifier"
+    }
+  ]
+}

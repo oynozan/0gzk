@@ -2,6 +2,16 @@
   "name": "geofence_proof",
   "version": "0.1.0",
   "description": "Prove a private (lat, lng) lies inside a public rectangular bounding box without revealing the exact point. Coordinates use 32-bit fixed-point: lat = round((lat_deg + 90) * 1e6), lng = round((lng_deg + 180) * 1e6)",
+  "tags": [
+    "geo",
+    "location",
+    "range",
+    "privacy"
+  ],
+  "useCases": [
+    "Prove presence inside a geographic bounding box without exact coordinates",
+    "Location-gated drops that never learn where the user is"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

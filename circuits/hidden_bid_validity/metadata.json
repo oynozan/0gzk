@@ -2,6 +2,16 @@
   "name": "hidden_bid_validity",
   "version": "0.1.0",
   "description": "Sealed-bid auction primitive: prove a private bid opens a public Poseidon commitment and is within a published [minBid, maxBid] range",
+  "tags": [
+    "auction",
+    "bid",
+    "range",
+    "commitment"
+  ],
+  "useCases": [
+    "Sealed-bid auctions: prove a bid is within bounds without revealing it",
+    "Commit-reveal bidding with validity guarantees"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

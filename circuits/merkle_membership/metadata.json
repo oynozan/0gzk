@@ -2,6 +2,16 @@
   "name": "merkle_membership",
   "version": "0.1.0",
   "description": "Proves a private leaf is included in a public Poseidon-2 Merkle tree of depth 8 without revealing the leaf or its path",
+  "tags": [
+    "merkle",
+    "membership",
+    "allowlist",
+    "poseidon"
+  ],
+  "useCases": [
+    "Prove an address is on an allowlist without revealing which entry",
+    "Anonymous group membership checks against a published Merkle root"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

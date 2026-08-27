@@ -2,6 +2,16 @@
   "name": "eddsa_credential_check",
   "version": "0.1.0",
   "description": "Verifies an issuer's Baby Jubjub EdDSA signature over Poseidon(subject, claim) without revealing the subject; emits a per-context nullifier",
+  "tags": [
+    "credential",
+    "signature",
+    "eddsa",
+    "identity"
+  ],
+  "useCases": [
+    "Prove possession of an issuer-signed credential without showing it",
+    "Selective disclosure of verified attributes"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {

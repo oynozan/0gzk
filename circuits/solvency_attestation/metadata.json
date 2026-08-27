@@ -2,6 +2,16 @@
   "name": "solvency_attestation",
   "version": "0.1.0",
   "description": "N=16 proof of reserves: prove sum of 16 Poseidon-committed balances meets a public threshold, without revealing individual balances",
+  "tags": [
+    "finance",
+    "solvency",
+    "threshold",
+    "attestation"
+  ],
+  "useCases": [
+    "Prove assets exceed liabilities without publishing the books",
+    "Exchange proof-of-solvency attestations"
+  ],
   "protocol": "groth16",
   "curve": "bn128",
   "inputs": {
