@@ -2,16 +2,28 @@ import { promises as fs, constants as fsConstants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { NETWORKS, NETWORK_NAMES, resolveNetwork } from "@0gzk/sdk";
+
 // Persistent CLI config lives at ~/.0gzk/config.json (or $OGZK_CONFIG_DIR/config.json
 // for tests / xdg-style overrides). It's a flat JSON of well-known keys, written
 // with mode 0600 so the private key isn't world-readable on multi-user boxes.
 
 export interface GlobalConfig {
   privateKey?: string;
-  network?: "testnet" | "mainnet";
+  /** Canonical network name (0g-mainnet, 0g-testnet, base, base-sepolia) or a deprecated alias. */
+  network?: string;
   rpcUrl?: string;
   indexerUrl?: string;
   registry?: string;
+  /** Bundle storage backend: "0g" or "ipfs". */
+  storage?: string;
+  /** 0G chain the 0G Storage backend signs on (0g-mainnet | 0g-testnet). */
+  storageNetwork?: string;
+  ipfsApiUrl?: string;
+  ipfsApiToken?: string;
+  ipfsGateway?: string;
+  /** Anthropic API key used by `0gzk agent`. */
+  anthropicApiKey?: string;
 }
 
 export type ConfigKey = keyof GlobalConfig;
@@ -22,6 +34,12 @@ export const CONFIG_KEYS: ConfigKey[] = [
   "rpcUrl",
   "indexerUrl",
   "registry",
+  "storage",
+  "storageNetwork",
+  "ipfsApiUrl",
+  "ipfsApiToken",
+  "ipfsGateway",
+  "anthropicApiKey",
 ];
 
 // Maps a config key to the env var it injects on startup, so SDK code that
@@ -32,6 +50,12 @@ export const CONFIG_TO_ENV: Record<ConfigKey, string> = {
   rpcUrl: "OG_RPC_URL",
   indexerUrl: "OG_INDEXER_URL",
   registry: "OGZK_REGISTRY_ADDRESS",
+  storage: "OGZK_STORAGE",
+  storageNetwork: "OGZK_STORAGE_NETWORK",
+  ipfsApiUrl: "OGZK_IPFS_API_URL",
+  ipfsApiToken: "OGZK_IPFS_API_TOKEN",
+  ipfsGateway: "OGZK_IPFS_GATEWAY",
+  anthropicApiKey: "ANTHROPIC_API_KEY",
 };
 
 export function getConfigDir(): string {
@@ -118,8 +142,29 @@ export function validateConfigValue(key: ConfigKey, value: string): void {
       }
       return;
     case "network":
-      if (value !== "testnet" && value !== "mainnet") {
-        throw new Error('network must be "testnet" or "mainnet".');
+      if (!resolveNetwork(value)) {
+        throw new Error(
+          `network must be one of: ${NETWORK_NAMES.join(", ")} ` +
+            "(mainnet and testnet are accepted as deprecated 0G aliases).",
+        );
+      }
+      return;
+    case "storageNetwork": {
+      const resolved = resolveNetwork(value);
+      if (!resolved || NETWORKS[resolved].family !== "0g") {
+        throw new Error('storageNetwork must be "0g-mainnet" or "0g-testnet".');
+      }
+      return;
+    }
+    case "storage":
+      if (value !== "0g" && value !== "ipfs") {
+        throw new Error('storage must be "0g" or "ipfs".');
+      }
+      return;
+    case "ipfsApiToken":
+    case "anthropicApiKey":
+      if (value.trim().length === 0) {
+        throw new Error(`${key} must be a non-empty string.`);
       }
       return;
     case "registry":
@@ -131,6 +176,8 @@ export function validateConfigValue(key: ConfigKey, value: string): void {
       return;
     case "rpcUrl":
     case "indexerUrl":
+    case "ipfsApiUrl":
+    case "ipfsGateway":
       try {
         const url = new URL(value);
         if (url.protocol !== "http:" && url.protocol !== "https:") {

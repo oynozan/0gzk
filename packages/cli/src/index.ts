@@ -23,6 +23,12 @@ import {
   runConfigUnset,
   runSetKey,
 } from "./commands/config.js";
+import { runAgent } from "./commands/agent.js";
+import {
+  runCatalogBuild,
+  runCatalogCheck,
+  runCatalogImportPublications,
+} from "./commands/catalog.js";
 import { applyGlobalConfigToEnv, loadGlobalConfig } from "./config-store.js";
 
 // Pull persistent settings from ~/.0gzk/config.json into process.env so the
@@ -53,17 +59,27 @@ const program = new Command();
 
 program
   .name("0gzk")
-  .description("0gzk CLI: publish circuit bundles to 0G Storage, register them on 0G Chain, and prove locally.")
+  .description(
+    "0gzk CLI: publish circuit bundles to decentralized storage (0G Storage or IPFS), " +
+      "register them on-chain (0G or Base), and prove locally.",
+  )
   .version(pkg.version);
 
 program
   .command("publish")
-  .description("Pack a circuit bundle, upload it to 0G Storage, and optionally register it on-chain.")
+  .description(
+    "Pack a circuit bundle, upload it to storage (0G Storage or IPFS), and optionally register it on-chain.",
+  )
   .argument("<bundleDir>", "Path to the circuit_bundle/ directory to upload")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
+  .option("--storage <backend>", "Bundle storage backend: 0g | ipfs (default: 0g on 0G chains, ipfs elsewhere)")
+  .option("--storage-network <network>", "0G chain the 0G Storage backend signs on (0g-mainnet | 0g-testnet)")
   .option("--rpc-url <url>", "Override EVM RPC URL")
   .option("--indexer-url <url>", "Override 0G Storage indexer URL")
-  .option("--key <hex>", "Override OG_PRIVATE_KEY (0x-prefixed)")
+  .option("--key <hex>", "Override the signing key (0x-prefixed)")
   .option("--no-receipt", "Do not write .published.json into the bundle directory")
   .option("--register", "Also call CircuitRegistry.publishVersion after upload")
   .option("--registry <address>", "Override the on-chain CircuitRegistry address")
@@ -80,6 +96,8 @@ program
   .action(async (bundleDir: string, opts) => {
     await runPublish(bundleDir, {
       network: opts.network,
+      storage: opts.storage,
+      storageNetwork: opts.storageNetwork,
       rpcUrl: opts.rpcUrl,
       indexerUrl: opts.indexerUrl,
       privateKey: opts.key,
@@ -95,14 +113,19 @@ program
 
 program
   .command("fetch")
-  .description("Download a circuit bundle from 0G Storage by root hash and untar it.")
-  .argument("<rootHash>", "0x-prefixed root hash returned by `0gzk publish`")
+  .description("Download a circuit bundle from storage and untar it.")
+  .argument("<ref>", "Bundle reference: 0x root hash, ipfs://<cid>, Qm... CID, or 0g://0x...")
   .argument("[outputDir]", "Where to extract the bundle (default: a temp directory)")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
+  .option("--storage <backend>", "Backend for bare 0x refs: 0g | ipfs")
   .option("--indexer-url <url>", "Override 0G Storage indexer URL")
-  .action(async (rootHash: string, outputDir: string | undefined, opts) => {
-    await runFetch(rootHash, outputDir, {
+  .action(async (ref: string, outputDir: string | undefined, opts) => {
+    await runFetch(ref, outputDir, {
       network: opts.network,
+      storage: opts.storage,
       indexerUrl: opts.indexerUrl,
     });
   });
@@ -120,7 +143,10 @@ program
   .option("--rpc-url <url>", "Override the EVM RPC URL (used with --name)")
   .option("--out <dir>", "Write proof.json/public.json/result.json to this directory")
   .option("--no-verify", "Skip local verification after proving")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
   .option("--indexer-url <url>", "Override 0G Storage indexer URL")
   .action(async (inputFile: string, opts) => {
     await runProve(inputFile, {
@@ -152,15 +178,20 @@ registry
     "Local circuit_bundle/ directory whose metadata.json + verification_key.json " +
       "are used to compute (name, version, vkeyHash).",
   )
+  .option("--uri <bundleUri>", "Bundle URI to record on-chain (e.g. ipfs://Qm...); validated against the rootHash")
   .option("--metadata-uri <uri>", "Optional human-readable metadata URI to record on-chain")
   .option("--verifier-address <address>", "On-chain Groth16 verifier address (defaults to address(0))")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
   .option("--rpc-url <url>", "Override the EVM RPC URL")
   .option("--key <hex>", "Override OG_PRIVATE_KEY (0x-prefixed)")
   .option("--registry <address>", "Override the CircuitRegistry address")
   .action(async (rootHash: string, opts) => {
     await runRegistryRegister(rootHash, {
       bundle: opts.bundle,
+      uri: opts.uri,
       metadataUri: opts.metadataUri,
       verifierAddress: opts.verifierAddress,
       network: opts.network,
@@ -175,7 +206,10 @@ registry
   .description("Page through registered circuits.")
   .option("--offset <n>", "Pagination offset (default 0)")
   .option("--limit <n>", "Page size (default 50)")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
   .option("--rpc-url <url>", "Override the EVM RPC URL")
   .option("--registry <address>", "Override the CircuitRegistry address")
   .action(async (opts) => {
@@ -192,7 +226,10 @@ registry
   .command("get")
   .description("Show metadata for <name> (latest) or <name>@<version>.")
   .argument("<spec>", "Circuit name, optionally with @<version>")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
   .option("--rpc-url <url>", "Override the EVM RPC URL")
   .option("--registry <address>", "Override the CircuitRegistry address")
   .action(async (spec: string, opts) => {
@@ -208,7 +245,10 @@ registry
   .description("Resolve <name>@<version> via registry and download the bundle.")
   .argument("<spec>", "Circuit name@version")
   .argument("[outputDir]", "Where to extract the bundle (default: ~/.0gzk/bundles/<rootHash>/)")
-  .option("--network <network>", "Override network (testnet | mainnet)")
+  .option(
+    "--network <network>",
+    "Network: 0g-mainnet | 0g-testnet | base | base-sepolia (mainnet/testnet = 0G aliases)",
+  )
   .option("--rpc-url <url>", "Override the EVM RPC URL")
   .option("--registry <address>", "Override the CircuitRegistry address")
   .action(async (spec: string, outputDir: string | undefined, opts) => {
@@ -218,6 +258,59 @@ registry
       registry: opts.registry,
       outputDir,
     });
+  });
+
+program
+  .command("agent")
+  .description(
+    "Chat with an AI assistant that knows the 0gzk circuit catalog and registries. " +
+      "Needs @anthropic-ai/claude-agent-sdk installed and ANTHROPIC_API_KEY set.",
+  )
+  .argument("[prompt...]", "One-shot question; omit for an interactive chat")
+  .option("--model <model>", "Anthropic model id", "claude-sonnet-5")
+  .option("--max-turns <n>", "Max agentic turns per request", "25")
+  .option(
+    "--full-access",
+    "Allow file edits and shell commands (default: 0gzk tools + read-only file access)",
+  )
+  .option("--repo-root <dir>", "Override 0gzk repo root detection")
+  .action(async (promptWords: string[], opts) => {
+    await runAgent(promptWords, {
+      model: opts.model,
+      maxTurns: opts.maxTurns,
+      fullAccess: Boolean(opts.fullAccess),
+      repoRoot: opts.repoRoot,
+    });
+  });
+
+const catalog = program
+  .command("catalog")
+  .description("Maintain the circuit discovery catalog (circuits/index.json + README table).");
+
+catalog
+  .command("build")
+  .description("Regenerate circuits/index.json and the circuits/README.md catalog table.")
+  .option("--repo-root <dir>", "Override 0gzk repo root detection")
+  .action(async (opts) => {
+    await runCatalogBuild({ repoRoot: opts.repoRoot });
+  });
+
+catalog
+  .command("check")
+  .description("Exit 1 if the generated catalog is stale (used by CI).")
+  .option("--repo-root <dir>", "Override 0gzk repo root detection")
+  .action(async (opts) => {
+    await runCatalogCheck({ repoRoot: opts.repoRoot });
+  });
+
+catalog
+  .command("import-publications")
+  .description(
+    "Upsert circuits/publications.json from local circuit_bundle/.published.json receipts.",
+  )
+  .option("--repo-root <dir>", "Override 0gzk repo root detection")
+  .action(async (opts) => {
+    await runCatalogImportPublications({ repoRoot: opts.repoRoot });
   });
 
 program
@@ -235,13 +328,18 @@ const config = program
   .command("config")
   .description(
     "Read and write persistent CLI settings stored in ~/.0gzk/config.json " +
-      "(privateKey, network, rpcUrl, indexerUrl, registry).",
+      "(privateKey, network, rpcUrl, indexerUrl, registry, storage, storageNetwork, " +
+      "ipfsApiUrl, ipfsApiToken, ipfsGateway, anthropicApiKey).",
   );
 
 config
   .command("set")
   .description("Set a config value, e.g. `0gzk config set privateKey 0x...`.")
-  .argument("<key>", "One of: privateKey, network, rpcUrl, indexerUrl, registry")
+  .argument(
+    "<key>",
+    "One of: privateKey, network, rpcUrl, indexerUrl, registry, storage, " +
+      "storageNetwork, ipfsApiUrl, ipfsApiToken, ipfsGateway, anthropicApiKey",
+  )
   .argument("<value>", "Value to store. Validated before write.")
   .action(async (key: string, value: string) => {
     await runConfigSet(key, value);

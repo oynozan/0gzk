@@ -1,6 +1,7 @@
+import { promises as fs } from "node:fs";
 import * as path from "node:path";
 
-import { readBundleFromDir } from "@0gzk/sdk/node";
+import { parseBundleRef, readBundleFromDir } from "@0gzk/sdk/node";
 import chalk from "chalk";
 import ora from "ora";
 
@@ -17,7 +18,7 @@ import {
 export interface RegistryListOptions {
   offset?: string;
   limit?: string;
-  network?: "testnet" | "mainnet";
+  network?: string;
   rpcUrl?: string;
   registry?: string;
 }
@@ -50,7 +51,7 @@ export async function runRegistryList(options: RegistryListOptions = {}): Promis
 }
 
 export interface RegistryGetOptions {
-  network?: "testnet" | "mainnet";
+  network?: string;
   rpcUrl?: string;
   registry?: string;
 }
@@ -108,7 +109,7 @@ function printVersion(
 }
 
 export interface RegistryResolveOptions {
-  network?: "testnet" | "mainnet";
+  network?: string;
   rpcUrl?: string;
   registry?: string;
   outputDir?: string;
@@ -116,12 +117,56 @@ export interface RegistryResolveOptions {
 
 export interface RegistryRegisterOptions {
   bundle: string;
+  /** Bundle URI to record on-chain (e.g. ipfs://Qm...); validated against the rootHash. */
+  uri?: string;
   metadataUri?: string;
   verifierAddress?: string;
-  network?: "testnet" | "mainnet";
+  network?: string;
   rpcUrl?: string;
   privateKey?: string;
   registry?: string;
+}
+
+/**
+ * Decide what goes into the on-chain metadataURI slot: an explicit `--uri`
+ * (validated against the rootHash), else the `uri` recorded in the bundle's
+ * `.published.json` when it matches this rootHash, else `--metadata-uri`,
+ * else empty. Non-0G bundles are only reachable through their URI, so getting
+ * this right is what keeps them resolvable.
+ */
+async function resolveRegisterUri(
+  rootHash: string,
+  options: RegistryRegisterOptions,
+): Promise<string> {
+  if (options.uri) {
+    // parseBundleRef validates scheme + digest consistency and throws otherwise.
+    parseBundleRef({ rootHash, metadataURI: options.uri });
+    if (options.metadataUri && options.metadataUri !== options.uri) {
+      throw new Error("--uri and --metadata-uri cannot both be set to different values.");
+    }
+    return options.uri;
+  }
+
+  try {
+    const receiptRaw = await fs.readFile(
+      path.join(path.resolve(options.bundle), ".published.json"),
+      "utf8",
+    );
+    const receipt = JSON.parse(receiptRaw) as { rootHash?: string; uri?: string };
+    if (
+      typeof receipt.uri === "string" &&
+      receipt.uri.length > 0 &&
+      receipt.rootHash?.toLowerCase() === rootHash.toLowerCase() &&
+      !options.metadataUri
+    ) {
+      parseBundleRef({ rootHash, metadataURI: receipt.uri });
+      return receipt.uri;
+    }
+  } catch {
+    // No receipt or unreadable — fall through.
+  }
+
+  return options.metadataUri ?? "";
 }
 
 /**
@@ -148,9 +193,11 @@ export async function runRegistryRegister(
   });
   if (!handle.signer) {
     throw new Error(
-      "registry register requires OG_PRIVATE_KEY (or --key) to sign the registration tx.",
+      "registry register requires a signing key (OGZK_PRIVATE_KEY, OG_PRIVATE_KEY, or --key).",
     );
   }
+
+  const metadataUri = await resolveRegisterUri(rootHash, options);
 
   const { name, version } = bundle.metadata;
   console.log(chalk.dim(`network:  ${handle.config.network}`));
@@ -184,7 +231,6 @@ export async function runRegistryRegister(
   try {
     const verifier =
       options.verifierAddress ?? "0x0000000000000000000000000000000000000000";
-    const metadataUri = options.metadataUri ?? "";
     const tx = await handle.registry.getFunction("publishVersion")(
       name,
       version,

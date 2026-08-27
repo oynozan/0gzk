@@ -1,7 +1,7 @@
 {
   "name": "@0gzk/cli",
-  "version": "0.3.3",
-  "description": "0gzk CLI: publish circuit bundles to 0G Storage, fetch them back, and prove locally",
+  "version": "0.4.0",
+  "description": "0gzk CLI: publish circuit bundles to decentralized storage (0G Storage or IPFS), register them on 0G or Base, fetch them back, and prove locally",
   "type": "module",
   "bin": {
     "0gzk": "./dist/index.js"
@@ -43,14 +43,24 @@
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.4",
-    "@0gzk/sdk": "^0.3.2",
+    "@0gzk/mcp": "^0.1.0",
+    "@0gzk/sdk": "^0.4.0",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "ethers": "^6.13.0",
     "ora": "^8.1.0",
     "snarkjs": "^0.7.5"
   },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.6.2",
     "vitest": "^2.1.0"

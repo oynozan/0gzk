@@ -6,6 +6,7 @@ import {
   loadConfig,
   readBundleFromDir,
   uploadBundle,
+  type StorageConfig,
   type UploadProgress,
   type UploadResult,
 } from "@0gzk/sdk/node";
@@ -16,7 +17,9 @@ import { connectRegistry, hashVkey } from "../registry.js";
 import { formatDuration, parseDuration } from "../duration.js";
 
 export interface PublishOptions {
-  network?: "testnet" | "mainnet";
+  network?: string;
+  storage?: string;
+  storageNetwork?: string;
   rpcUrl?: string;
   indexerUrl?: string;
   privateKey?: string;
@@ -39,7 +42,9 @@ export async function runPublish(
   options: PublishOptions = {},
 ): Promise<void> {
   const config = loadConfig({
-    network: options.network,
+    network: options.network as StorageConfig["network"] | undefined,
+    storage: options.storage as StorageConfig["storage"] | undefined,
+    storageNetwork: options.storageNetwork as StorageConfig["storageNetwork"] | undefined,
     rpcUrl: options.rpcUrl,
     indexerUrl: options.indexerUrl,
     privateKey: options.privateKey,
@@ -51,7 +56,23 @@ export async function runPublish(
   const timeoutMs = parseDuration(waitInput);
 
   console.log(chalk.dim(`network:  ${config.network}`));
-  console.log(chalk.dim(`indexer:  ${config.indexerUrl}`));
+  console.log(chalk.dim(`storage:  ${config.storage}`));
+  if (config.storage === "0g") {
+    console.log(chalk.dim(`indexer:  ${config.indexerUrl}`));
+    if (config.network !== config.storageNetwork) {
+      console.log(chalk.dim(`storage chain: ${config.storageNetwork}`));
+      if (options.register) {
+        console.log(
+          chalk.yellow(
+            `note: the upload tx needs gas on ${config.storageNetwork} and the ` +
+              `registration tx needs gas on ${config.network} — the same key signs both.`,
+          ),
+        );
+      }
+    }
+  } else {
+    console.log(chalk.dim(`ipfs api: ${config.ipfs.apiUrl}`));
+  }
   console.log(chalk.dim(`bundle:   ${path.resolve(bundleDir)}`));
   if (options.register) console.log(chalk.dim(`register: yes`));
   console.log(chalk.dim(`wait:     ${formatDuration(timeoutMs)}`));
@@ -120,7 +141,9 @@ export async function runPublish(
   let uploadError: unknown;
   try {
     result = await uploadBundle(bundleDir, config, { timeoutMs, onProgress });
-    spinner.succeed("Uploaded and finalized on 0G Storage");
+    spinner.succeed(
+      result.backend === "ipfs" ? "Pinned to IPFS" : "Uploaded and finalized on 0G Storage",
+    );
   } catch (err) {
     uploadError = err;
     if (err instanceof UploadTimeoutError) {
@@ -156,9 +179,12 @@ export async function runPublish(
   console.log();
   console.log(chalk.bold("rootHash:"), chalk.green(effectiveRootHash));
   if (result) {
-    console.log(chalk.bold("txHash:  "), chalk.green(result.txHash));
-    console.log(chalk.bold("txSeq:   "), chalk.green(String(result.txSeq)));
-    console.log(chalk.dim(`explorer: ${config.explorer}/tx/${result.txHash}`));
+    console.log(chalk.bold("uri:     "), chalk.green(result.uri));
+    if (result.txHash) {
+      console.log(chalk.bold("txHash:  "), chalk.green(result.txHash));
+      console.log(chalk.bold("txSeq:   "), chalk.green(String(result.txSeq)));
+      console.log(chalk.dim(`explorer: ${config.explorer}/tx/${result.txHash}`));
+    }
   } else {
     console.log(
       chalk.yellow(
@@ -177,7 +203,7 @@ export async function runPublish(
   } | null = null;
 
   if (options.register) {
-    registryReceipt = await registerOnChain(bundleDir, effectiveRootHash, options);
+    registryReceipt = await registerOnChain(bundleDir, effectiveRootHash, options, result);
   }
 
   if (options.writeReceipt !== false) {
@@ -187,9 +213,12 @@ export async function runPublish(
       `${JSON.stringify(
         {
           rootHash: effectiveRootHash,
+          uri: result?.uri ?? null,
+          storage: result?.backend ?? config.storage,
           txHash: result?.txHash ?? null,
           txSeq: result?.txSeq ?? null,
           network: config.network,
+          chainId: config.chainId,
           publishedAt: new Date().toISOString(),
           finalized: Boolean(result),
           registry: registryReceipt,
@@ -232,6 +261,7 @@ async function registerOnChain(
   bundleDir: string,
   rootHash: string,
   options: PublishOptions,
+  uploadResult?: UploadResult,
 ): Promise<{
   address: string;
   name: string;
@@ -249,8 +279,23 @@ async function registerOnChain(
   });
   if (!handle.signer) {
     throw new Error(
-      "--register requires OG_PRIVATE_KEY (or --key) to sign the registration tx.",
+      "--register requires a signing key (OGZK_PRIVATE_KEY, OG_PRIVATE_KEY, or --key).",
     );
+  }
+
+  // Non-0G bundles are only reachable through their URI, so it MUST occupy
+  // the on-chain metadataURI slot — a user-supplied value would orphan them.
+  let metadataUri = options.metadataUri ?? "";
+  if (uploadResult && uploadResult.backend !== "0g") {
+    if (options.metadataUri && options.metadataUri !== uploadResult.uri) {
+      throw new Error(
+        `--metadata-uri cannot be combined with --storage ${uploadResult.backend}: ` +
+          `the bundle URI ${uploadResult.uri} must occupy the on-chain metadataURI ` +
+          "slot so consumers can locate the bundle. Put extra metadata inside the " +
+          "bundle's metadata.json instead.",
+      );
+    }
+    metadataUri = uploadResult.uri;
   }
 
   const { name, version } = bundle.metadata;
@@ -282,7 +327,6 @@ async function registerOnChain(
   const publishSpinner = ora(`Publishing ${name}@${version}`).start();
   try {
     const verifier = options.verifierAddress ?? "0x0000000000000000000000000000000000000000";
-    const metadataUri = options.metadataUri ?? "";
     const tx = await handle.registry.getFunction("publishVersion")(
       name,
       version,

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import {
   fetchBundle,
   loadConfig,
+  parseBundleRef,
   readBundleFromDir,
   type StorageConfig,
 } from "@0gzk/sdk/node";
@@ -17,14 +18,17 @@ import {
   parseNameSpec,
   type VersionRecord,
 } from "@0gzk/sdk/onchain";
+import { canonicalJSON, hashVkey as hashVkeyTyped } from "@0gzk/sdk/build";
 import type { BundleFiles } from "@0gzk/sdk";
 import { ethers } from "ethers";
 
 export interface RegistryConnectOptions {
-  network?: "testnet" | "mainnet";
+  network?: string;
   rpcUrl?: string;
   registryAddress?: string;
   privateKey?: string;
+  storage?: string;
+  storageNetwork?: string;
 }
 
 export interface RegistryHandle {
@@ -48,9 +52,11 @@ function resolveRegistryAddress(config: StorageConfig, override?: string): strin
 /** Open a read- or write-capable connection to the registry. */
 export function connectRegistry(opts: RegistryConnectOptions = {}): RegistryHandle {
   const config = loadConfig({
-    network: opts.network,
+    network: opts.network as StorageConfig["network"] | undefined,
     rpcUrl: opts.rpcUrl,
     privateKey: opts.privateKey,
+    storage: opts.storage as StorageConfig["storage"] | undefined,
+    storageNetwork: opts.storageNetwork as StorageConfig["storageNetwork"] | undefined,
   });
   const envOverride = process.env.OGZK_REGISTRY_ADDRESS;
   const registryAddress = resolveRegistryAddress(config, opts.registryAddress ?? envOverride);
@@ -70,26 +76,14 @@ export {
 };
 
 /**
- * Canonicalise a verification_key.json object and hash it. We use stable JSON
- * stringification (sorted keys, no whitespace) so two parties computing this
- * over the same vkey get identical bytes32. The on-chain registry stores this
- * digest so consumers can prove the bundle they fetched matches the one that
- * was registered.
+ * Canonical-JSON keccak256 of a verification key — re-exported from
+ * `@0gzk/sdk/build` so the CLI and SDK can never drift.
  */
 export function hashVkey(vkey: unknown): string {
-  const canonical = canonicalJSON(vkey);
-  return ethers.keccak256(ethers.toUtf8Bytes(canonical));
+  return hashVkeyTyped(vkey);
 }
 
-function canonicalJSON(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJSON).join(",")}]`;
-  const keys = Object.keys(value as Record<string, unknown>).sort();
-  const body = keys
-    .map((k) => `${JSON.stringify(k)}:${canonicalJSON((value as Record<string, unknown>)[k])}`)
-    .join(",");
-  return `{${body}}`;
-}
+export { canonicalJSON };
 
 /** Resolve a name@version (or just name) into a VersionRecord. */
 export async function resolveVersionRecord(
@@ -103,10 +97,28 @@ export async function resolveVersionRecord(
   return getLatest(handle.registry, spec.name);
 }
 
+/** The record decides the backend: ipfs:// metadataURI → IPFS, else 0G. */
+function bundleFetchRef(record: VersionRecord): string {
+  const ref = parseBundleRef(record);
+  return ref.backend === "ipfs" ? `ipfs://${ref.ref}` : record.rootHash;
+}
+
+function warnOnVkeyMismatch(record: VersionRecord, bundle: BundleFiles): void {
+  const computed = hashVkeyTyped(bundle.vkey);
+  if (computed.toLowerCase() !== record.vkeyHash.toLowerCase()) {
+    process.stderr.write(
+      `warn: fetched bundle's verification key hashes to ${computed}, but the ` +
+        `registry record says ${record.vkeyHash}. The bundle may not be the one ` +
+        "that was registered — verify before trusting proofs against it.\n",
+    );
+  }
+}
+
 /**
- * Fetch a bundle by name@version: looks up the rootHash on-chain and then
- * downloads + extracts via @0gzk/sdk/node's `fetchBundle`. Caches under
- * `cacheDir/<rootHash>/`.
+ * Fetch a bundle by name@version: looks up the record on-chain, routes to the
+ * storage backend named by its metadataURI (0G Storage or IPFS), and extracts.
+ * Caches under `cacheDir/<rootHash>/` — the cache key is the rootHash
+ * regardless of backend.
  */
 export async function fetchBundleByName(
   handle: RegistryHandle,
@@ -114,6 +126,7 @@ export async function fetchBundleByName(
   cacheDir?: string,
 ): Promise<{ bundle: BundleFiles; rootHash: string; version: string; record: VersionRecord }> {
   const { version, record } = await resolveVersionRecord(handle, spec);
+  const fetchRef = bundleFetchRef(record);
 
   if (cacheDir) {
     const cacheTarget = path.join(cacheDir, record.rootHash.toLowerCase());
@@ -122,11 +135,13 @@ export async function fetchBundleByName(
       return { bundle, rootHash: record.rootHash, version, record };
     }
     await fs.mkdir(cacheTarget, { recursive: true });
-    const bundle = await fetchBundle(record.rootHash, handle.config, cacheTarget);
+    const bundle = await fetchBundle(fetchRef, handle.config, cacheTarget);
+    warnOnVkeyMismatch(record, bundle);
     return { bundle, rootHash: record.rootHash, version, record };
   }
 
-  const bundle = await fetchBundle(record.rootHash, handle.config);
+  const bundle = await fetchBundle(fetchRef, handle.config);
+  warnOnVkeyMismatch(record, bundle);
   return { bundle, rootHash: record.rootHash, version, record };
 }
 

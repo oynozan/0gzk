@@ -7,6 +7,7 @@ import {
   fetchBundle,
   loadConfig,
   readBundleFromDir,
+  type StorageConfig,
 } from "@0gzk/sdk/node";
 import chalk from "chalk";
 import ora from "ora";
@@ -20,7 +21,7 @@ export interface ProveOptions {
   registry?: string;
   rpcUrl?: string;
   out?: string;
-  network?: "testnet" | "mainnet";
+  network?: string;
   indexerUrl?: string;
   verify?: boolean;
 }
@@ -121,11 +122,11 @@ async function resolveBundle(
   await fs.mkdir(cacheDir, { recursive: true });
 
   const config = loadConfig({
-    network: options.network,
+    network: options.network as StorageConfig["network"] | undefined,
     indexerUrl: options.indexerUrl,
   });
 
-  const spinner = ora("Downloading bundle from 0G Storage").start();
+  const spinner = ora("Downloading bundle from storage").start();
   try {
     const bundle = await fetchBundle(rootHash, config, cacheDir);
     spinner.succeed(`Bundle cached at ${cacheDir}`);

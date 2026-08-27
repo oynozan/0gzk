@@ -21,9 +21,11 @@ function assertKnownKey(key: string): asserts key is ConfigKey {
   }
 }
 
+const SECRET_KEYS: ConfigKey[] = ["privateKey", "ipfsApiToken", "anthropicApiKey"];
+
 function displayValue(key: ConfigKey, value: string | undefined, reveal: boolean): string {
   if (value === undefined) return chalk.dim("(unset)");
-  if (key === "privateKey" && !reveal) return chalk.green(maskPrivateKey(value) ?? "");
+  if (SECRET_KEYS.includes(key) && !reveal) return chalk.green(maskPrivateKey(value) ?? "");
   return chalk.green(value);
 }
 
@@ -39,7 +41,7 @@ export async function runConfigSet(key: string, value: string): Promise<void> {
     `${chalk.green("✓")} set ${chalk.bold(key)} = ${displayValue(key, value, false)}`,
   );
   console.log(chalk.dim(`  ${getConfigPath()}`));
-  if (key === "privateKey") {
+  if (SECRET_KEYS.includes(key)) {
     console.log(
       chalk.dim(
         "  stored in plain text with mode 0600. Anyone with read access to your home directory can read this file.",
@@ -89,7 +91,7 @@ export async function runConfigGet(
         ? chalk.cyan("config")
         : chalk.dim("(default)");
     console.log(
-      `  ${chalk.bold(k.padEnd(11))} ${displayValue(k, effective, reveal)}  ${source}`,
+      `  ${chalk.bold(k.padEnd(16))} ${displayValue(k, effective, reveal)}  ${source}`,
     );
   }
   console.log();
@@ -98,8 +100,8 @@ export async function runConfigGet(
       "Resolution: CLI flag > shell env > ~/.0gzk/config.json > built-in network preset.",
     ),
   );
-  if (!reveal && cfg.privateKey) {
-    console.log(chalk.dim("Re-run with --show to reveal the private key."));
+  if (!reveal && SECRET_KEYS.some((k) => cfg[k])) {
+    console.log(chalk.dim("Re-run with --show to reveal secret values."));
   }
 }
 
