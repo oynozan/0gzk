@@ -1,6 +1,6 @@
 import type { CircuitMetadata } from "@0gzk/sdk";
 import type { RegistryAttribution } from "@/lib/api";
-import { getExplorerBase } from "@/lib/explorer";
+import { getExplorerAddressUrl } from "@/lib/explorer";
 import { Block, Row } from "./SpecSheet";
 
 function trunc(hash: string, head = 12, tail = 8) {
@@ -32,7 +32,6 @@ export function BundleHeader({
 }) {
   let cursor = 0;
   const next = () => cursor++;
-  const explorerBase = getExplorerBase();
 
   return (
     <Block title="BUNDLE" index={index}>
@@ -57,7 +56,7 @@ export function BundleHeader({
             <span style={{ color: "var(--text)" }}>{trunc(rootHash)}</span>
           </span>
         }
-        unit="0G storage CID"
+        unit="storage CID"
         delayIndex={next()}
       />
 
@@ -79,7 +78,7 @@ export function BundleHeader({
             label="VERIFIER"
             value={
               <a
-                href={`${explorerBase}/accounts/${registry.verifier}/transactions`}
+                href={getExplorerAddressUrl(registry.verifier)}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={registry.verifier}
@@ -95,7 +94,7 @@ export function BundleHeader({
             label="PUBLISHER"
             value={
               <a
-                href={`${explorerBase}/accounts/${registry.publisher}/transactions`}
+                href={getExplorerAddressUrl(registry.publisher)}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={registry.publisher}

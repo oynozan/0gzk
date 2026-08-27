@@ -1,6 +1,7 @@
 import "server-only";
 import { JsonRpcProvider } from "ethers";
 
+import { NETWORKS, resolveNetwork } from "@0gzk/sdk";
 import {
   getRegistryContract,
   getVersion as sdkGetVersion,
@@ -11,26 +12,29 @@ import {
   type VersionRecord,
 } from "@0gzk/sdk/onchain";
 
-const DEFAULT_RPC = "https://evmrpc.0g.ai";
-const DEFAULT_CHAIN_ID = 16661;
+function networkPreset() {
+  const name =
+    resolveNetwork(process.env.OGZK_NETWORK ?? process.env.OG_NETWORK) ?? "0g-mainnet";
+  return NETWORKS[name];
+}
 
 function rpcUrl(): string {
   return (
     process.env.OG_RPC_URL ??
     process.env.NEXT_PUBLIC_OG_RPC_URL ??
-    DEFAULT_RPC
+    networkPreset().rpcUrl
   );
 }
 
 function chainId(): number {
   const raw = process.env.OG_CHAIN_ID;
-  if (!raw) return DEFAULT_CHAIN_ID;
+  if (!raw) return networkPreset().chainId;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : DEFAULT_CHAIN_ID;
+  return Number.isFinite(n) ? n : networkPreset().chainId;
 }
 
 function registryAddressOverride(): string | undefined {
-  const a = process.env.OG_REGISTRY_ADDRESS;
+  const a = process.env.OGZK_REGISTRY_ADDRESS ?? process.env.OG_REGISTRY_ADDRESS;
   return a && a.length > 0 ? a : undefined;
 }
 

@@ -4,7 +4,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import type { BundleFiles } from "@0gzk/sdk";
-import { fetchBundle, loadConfig, readBundleFromDir } from "@0gzk/sdk/node";
+import {
+  fetchBundle,
+  loadConfig,
+  parseBundleRef,
+  readBundleFromDir,
+} from "@0gzk/sdk/node";
+import { hashVkey } from "@0gzk/sdk/build";
 
 import { resolveNameToRecord } from "./registry";
 
@@ -40,6 +46,7 @@ export interface ResolvedBundle {
 
 export async function resolveBundleByRootHash(
   rootHash: string,
+  fetchRef?: string,
 ): Promise<ResolvedBundle> {
   if (!/^0x[0-9a-fA-F]{64}$/.test(rootHash)) {
     throw new Error(
@@ -59,7 +66,7 @@ export async function resolveBundleByRootHash(
   await fs.mkdir(cacheDir, { recursive: true });
   const config = loadConfig({});
   try {
-    const bundle = await fetchBundle(rootHash, config, cacheDir);
+    const bundle = await fetchBundle(fetchRef ?? rootHash, config, cacheDir);
     return { bundle, cached: false, cacheDir, rootHash };
   } catch (err) {
     await fs.rm(cacheDir, { recursive: true, force: true }).catch(() => undefined);
@@ -69,14 +76,28 @@ export async function resolveBundleByRootHash(
 
 /**
  * Resolve a `<name>` or `<name>@<version>` registry spec into a fetched
- * bundle. Looks up the record on-chain, dereferences `rootHash`, and reuses
- * the same on-disk cache as `resolveBundleByRootHash`.
+ * bundle. Looks up the record on-chain, routes to the storage backend named
+ * by its metadataURI (0G Storage or IPFS), and reuses the same on-disk cache
+ * as `resolveBundleByRootHash` (cache key = rootHash, backend-independent).
  */
 export async function resolveBundleByName(
   spec: string,
 ): Promise<ResolvedBundle> {
   const record = await resolveNameToRecord(spec);
-  const inner = await resolveBundleByRootHash(record.rootHash);
+  const ref = parseBundleRef(record);
+  const inner = await resolveBundleByRootHash(
+    record.rootHash,
+    ref.backend === "ipfs" ? `ipfs://${ref.ref}` : record.rootHash,
+  );
+  if (!inner.cached) {
+    const computed = hashVkey(inner.bundle.vkey);
+    if (computed.toLowerCase() !== record.vkeyHash.toLowerCase()) {
+      console.warn(
+        `[0gzk] fetched bundle vkey hash ${computed} does not match registry ` +
+          `record ${record.vkeyHash} for ${record.name}@${record.version}`,
+      );
+    }
+  }
   return {
     ...inner,
     registry: {
