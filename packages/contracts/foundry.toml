@@ -12,6 +12,12 @@ gas_reports = ["CircuitRegistry"]
 [rpc_endpoints]
 galileo = "${OG_RPC_URL}"
 mainnet = "${OG_RPC_URL}"
+base = "https://mainnet.base.org"
+base-sepolia = "https://sepolia.base.org"
+
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}", chain = 8453 }
+base-sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532 }
 
 [fmt]
 line_length = 120

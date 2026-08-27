@@ -10,7 +10,10 @@
     "fmt:check": "forge fmt --check",
     "clean": "rimraf out cache broadcast",
     "deploy:mainnet": "forge script script/Deploy.s.sol:Deploy --rpc-url mainnet --broadcast",
-    "deploy:galileo": "forge script script/Deploy.s.sol:Deploy --rpc-url galileo --broadcast"
+    "deploy:galileo": "forge script script/Deploy.s.sol:Deploy --rpc-url galileo --broadcast",
+    "deploy:base": "forge script script/Deploy.s.sol:Deploy --rpc-url base --broadcast",
+    "deploy:base-sepolia": "forge script script/Deploy.s.sol:Deploy --rpc-url base-sepolia --broadcast",
+    "deploy:base-sepolia:verify": "forge script script/Deploy.s.sol:Deploy --rpc-url base-sepolia --broadcast --verify"
   },
   "devDependencies": {
     "rimraf": "^6.0.1"
