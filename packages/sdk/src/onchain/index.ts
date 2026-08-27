@@ -38,8 +38,8 @@ export interface ResolveOptions {
   /** Override the cached on-chain address for the chain the runner is on. */
   registryAddress?: string;
   /**
-   * Chain id used to look up the default registry address. Defaults to
-   * 16661 (0G mainnet). Pass 16602 for Galileo testnet.
+   * Chain id used to look up the default registry address: 16661 (0G
+   * mainnet), 16602 (0G Galileo testnet), 8453 (Base), 84532 (Base Sepolia).
    */
   chainId?: number;
 }
@@ -49,6 +49,10 @@ export interface ResolveOptions {
  * `ContractRunner` (a JsonRpcProvider, a connected Wallet, a viem-like adapter
  * implementing `call`, ...). Caller-supplied `address` always wins over the
  * built-in mapping.
+ *
+ * `chainId` defaults to 16661 (0G mainnet) for backwards compatibility —
+ * multi-chain callers should always pass it explicitly (see
+ * `REGISTRY_ADDRESSES` for the known chains).
  */
 export function getRegistryContract(
   runner: ContractRunner,
@@ -122,21 +126,26 @@ export async function listVersions(registry: Contract, name: string): Promise<st
 
 /**
  * Convenience: resolve `<name>@<version>` (or just `<name>` for latest) into
- * the on-chain record and then fetch the bundle from 0G Storage via a
- * caller-provided fetch function. Keeps the SDK browser-friendly: callers in
- * Node land use `@0gzk/sdk/node`'s `fetchBundle`, callers in the browser pass
- * a fetch shim that hits a server-side proxy.
+ * the on-chain record and then fetch the bundle via a caller-provided fetch
+ * function. Keeps the SDK browser-friendly: callers in Node land use
+ * `@0gzk/sdk/node`'s `fetchBundle`, callers in the browser pass a fetch shim
+ * that hits a server-side proxy.
+ *
+ * The full `VersionRecord` is passed as the second callback argument so
+ * callers can route to the right storage backend via `parseBundleRef`
+ * (records whose `metadataURI` is `ipfs://...` live on IPFS, not 0G Storage).
+ * One-argument callbacks keep working unchanged.
  */
 export async function resolveBundle(
   registry: Contract,
   spec: { name: string; version?: string },
-  fetchBundleFn: (rootHash: string) => Promise<BundleFiles>,
+  fetchBundleFn: (rootHash: string, record?: VersionRecord) => Promise<BundleFiles>,
 ): Promise<{ record: ResolvedRecord; bundle: BundleFiles }> {
   const lookup = spec.version
     ? { version: spec.version, record: await getVersion(registry, spec.name, spec.version) }
     : await getLatest(registry, spec.name);
 
-  const bundle = await fetchBundleFn(lookup.record.rootHash);
+  const bundle = await fetchBundleFn(lookup.record.rootHash, lookup.record);
   // Defensive sanity check: the fetched bundle's metadata should agree with
   // the registry record. We don't fail hard on name mismatch — a circuit could
   // legitimately be re-pointed under a new alias — but bundle.metadata.name

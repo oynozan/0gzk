@@ -28,6 +28,12 @@ export interface CircuitMetadata {
   name: string;
   version: string;
   description?: string;
+  /** Free-form discovery tags, e.g. ["identity", "age", "comparison"]. */
+  tags?: string[];
+  /** Extra search keywords not natural in the description ("kyc", "over-18"). */
+  keywords?: string[];
+  /** One-line scenarios: "Gate an 18+ product without collecting DOB". */
+  useCases?: string[];
   protocol: "groth16" | "plonk" | "fflonk";
   curve: "bn128" | "bls12-381";
   inputs: Record<string, InputSpec>;

@@ -178,19 +178,23 @@ describe("onchain / utility", () => {
     expect(parseNameSpec("alpha@0.1.0@beta")).toEqual({ name: "alpha", version: "0.1.0@beta" });
   });
 
-  it("REGISTRY_ADDRESSES exposes both 0G chains", () => {
-    expect(Object.keys(REGISTRY_ADDRESSES).map(Number).sort()).toEqual([16602, 16661]);
+  it("REGISTRY_ADDRESSES exposes both 0G chains and both Base chains", () => {
+    expect(Object.keys(REGISTRY_ADDRESSES).map(Number).sort((a, b) => a - b)).toEqual([
+      8453, 16602, 16661, 84532,
+    ]);
   });
 
   it("getRegistryAddress returns the configured address or null", () => {
     // Mainnet (16661) is the default deployment and must always be set.
     const mainnet = getRegistryAddress(16661);
     expect(mainnet).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    // Galileo (16602) is the optional testnet — set today, may be null in
-    // the future. Just assert it parses if present.
-    const galileo = getRegistryAddress(16602);
-    if (galileo !== null) {
-      expect(galileo).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    // The other chains may or may not carry a deployment yet — assert any
+    // present address parses.
+    for (const chainId of [16602, 84532, 8453]) {
+      const address = getRegistryAddress(chainId);
+      if (address !== null) {
+        expect(address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+      }
     }
     expect(getRegistryAddress(99999)).toBeNull();
   });
