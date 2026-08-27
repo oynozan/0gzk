@@ -1,0 +1,34 @@
+---
+title: Examples overview
+description: Five small reference projects; each teaches one 0gzk integration path.
+---
+
+# Examples
+
+The **`examples/`** directory in [`0gzk/core`](https://github.com/0gzk/core) ships **five standalone projects**. Each installs **`@0gzk/sdk`** from npm and stays intentionally short (on roughly tens to ~100 lines of code).
+
+The folder ships directly in the repo — a plain `git clone` brings it in.
+
+## How to run any example
+
+Most Node examples expect an **isolated install** (they are not part of the pnpm workspace):
+
+```bash
+cd examples/01-prove-in-node
+pnpm install --frozen-lockfile --ignore-workspace
+pnpm smoke
+```
+
+Swap **`01-prove-in-node`** for the folder you need. Each example page below lists its **entry files** and **what to look at**.
+
+## Quick map
+
+| # | Focus | Page |
+| --- | --- | --- |
+| 01 | Node: resolve, fetch, prove | [01: Prove in Node](/examples/01-prove-in-node) |
+| 02 | Browser + Vite + WASM | [02: Prove in browser](/examples/02-prove-in-browser) |
+| 03 | Foundry verifier consumer | [03: Verify on-chain](/examples/03-verify-on-chain) |
+| 04 | Registry phone book | [04: Resolve by name](/examples/04-resolve-by-name) |
+| 05 | Authoring + publish flow | [05: Publish your circuit](/examples/05-publish-your-own) |
+
+Upstream table: [`README.md` → Examples](https://github.com/0gzk/core?tab=readme-ov-file#examples).

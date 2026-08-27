@@ -1,0 +1,222 @@
+---
+title: "@0gzk/sdk/onchain"
+description: "CircuitRegistry client helpers, name resolution, and the embedded ABI."
+---
+
+# On-chain: `@0gzk/sdk/onchain`
+
+These helpers work in **Node and the browser** as long as the caller can build an **ethers v6** **`ContractRunner`** (a **`JsonRpcProvider`**, **`Wallet`**, or a custom shim).
+
+See **[Reference](/reference)** for the shapes of **`VersionRecord`**, **`CircuitSummary`**, **`ResolvedRecord`**, and **`BundleFiles`**.
+
+## Addresses and ABI
+
+### `REGISTRY_ADDRESSES`, `getRegistryAddress`
+
+```typescript
+const REGISTRY_ADDRESSES: Record<number, string | null>;
+function getRegistryAddress(chainId: number): string | null;
+```
+
+| Chain ID | Network | Address |
+| ---: | --- | --- |
+| **`16661`** | 0G mainnet | **`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`** |
+| **`16602`** | 0G Galileo testnet | **`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`** |
+
+**`getRegistryAddress(chainId)`** returns **`null`** for unknown chains. **`getRegistryContract`** falls back to this map when the caller does not pass an explicit address.
+
+### `CIRCUIT_REGISTRY_ABI`
+
+```typescript
+const CIRCUIT_REGISTRY_ABI: readonly object[];
+```
+
+Hand-maintained ABI of **`CircuitRegistry`** (functions and events). Use it if you want to construct your own **`ethers.Contract`** instance with extra plumbing (event filters, custom error decoders) without going through **`getRegistryContract`**.
+
+## Connecting to the registry
+
+### `getRegistryContract`
+
+```typescript
+function getRegistryContract(
+  runner: ContractRunner,
+  address?: string,
+  chainId?: number,
+): Contract;
+```
+
+Returns a typed read-or-write **`ethers.Contract`** bound to the registry. The defaults are:
+
+- **`address`**: when omitted, falls back to **`getRegistryAddress(chainId ?? 16661)`** (mainnet).
+- **`chainId`**: defaults to **`16661`**. Pass **`16602`** for Galileo.
+
+```typescript
+import { JsonRpcProvider } from "ethers";
+import { getRegistryContract } from "@0gzk/sdk/onchain";
+
+// Mainnet, baked-in address.
+const mainnet = getRegistryContract(new JsonRpcProvider("https://evmrpc.0g.ai"));
+
+// Galileo testnet, baked-in address.
+const galileo = getRegistryContract(
+  new JsonRpcProvider("https://evmrpc-testnet.0g.ai"),
+  undefined,
+  16602,
+);
+
+// Custom deployment.
+const custom = getRegistryContract(provider, "0xMyRegistry", 31337);
+```
+
+Throws when no address can be resolved (unknown chain id and no explicit **`address`**).
+
+## Reading the registry
+
+### `getVersion`
+
+```typescript
+function getVersion(
+  registry: Contract,
+  name: string,
+  version: string,
+): Promise<VersionRecord>;
+```
+
+Reads **`CircuitRegistry.getVersion(name, version)`**, decoding the tuple to a **`VersionRecord`** (timestamp coerced to **`number`**).
+
+### `getLatest`
+
+```typescript
+function getLatest(
+  registry: Contract,
+  name: string,
+): Promise<{ version: string; record: VersionRecord }>;
+```
+
+Reads the latest semver registered for **`name`** and the matching record. The contract decides what "latest" means; the SDK does not re-sort.
+
+### `listCircuits`
+
+```typescript
+function listCircuits(
+  registry: Contract,
+  options?: { offset?: number | bigint; limit?: number | bigint },
+): Promise<CircuitSummary[]>;
+```
+
+Paginated listing. Defaults: **`offset = 0`**, **`limit = 50`**. Use **`versionCount`** in the result to decide whether to call **`listVersions`** for a given row.
+
+```typescript
+import { getRegistryContract, listCircuits } from "@0gzk/sdk/onchain";
+
+const registry = getRegistryContract(provider);
+let offset = 0;
+while (true) {
+  const page = await listCircuits(registry, { offset, limit: 50 });
+  if (page.length === 0) break;
+  for (const row of page) console.log(row.name, row.latestVersion);
+  offset += page.length;
+}
+```
+
+### `listVersions`
+
+```typescript
+function listVersions(registry: Contract, name: string): Promise<string[]>;
+```
+
+Every registered version string for **`name`**.
+
+## Name resolution
+
+### `parseNameSpec`
+
+```typescript
+function parseNameSpec(input: string): { name: string; version?: string };
+```
+
+Splits **`name@version`** on the **first** **`@`**. With no **`@`**, **`version`** is **`undefined`** (meaning "latest" to callers like **`resolveBundle`**).
+
+```typescript
+parseNameSpec("age_verification");          // { name: "age_verification" }
+parseNameSpec("age_verification@0.1.0");    // { name: "age_verification", version: "0.1.0" }
+parseNameSpec("foo@1.0.0@beta");            // { name: "foo", version: "1.0.0@beta" }
+```
+
+Quirk: **`parseNameSpec("@foo")`** returns **`{ name: "", version: "foo" }`** because **`indexOf("@") === 0`**. If you accept user-provided strings, validate **`name`** is non-empty before passing it on.
+
+### `resolveBundle`
+
+```typescript
+function resolveBundle(
+  registry: Contract,
+  spec: { name: string; version?: string },
+  fetchBundleFn: (rootHash: string) => Promise<BundleFiles>,
+): Promise<{ record: ResolvedRecord; bundle: BundleFiles }>;
+```
+
+The full **"name -> bytes"** path: resolves the version (latest when **`spec.version`** is missing), then delegates the actual download to **`fetchBundleFn`**. That callback indirection is what lets the same helper work in Node and the browser.
+
+#### Node composition
+
+```typescript
+import { JsonRpcProvider } from "ethers";
+import {
+  getRegistryContract,
+  resolveBundle,
+  parseNameSpec,
+} from "@0gzk/sdk/onchain";
+import { fetchBundle, loadConfig } from "@0gzk/sdk/node";
+
+const config = loadConfig();
+const registry = getRegistryContract(new JsonRpcProvider(config.rpcUrl));
+
+const { record, bundle } = await resolveBundle(
+  registry,
+  parseNameSpec("age_verification@0.1.0"),
+  (rootHash) => fetchBundle(rootHash, { indexerUrl: config.indexerUrl }),
+);
+
+console.log(record.name, record.version, record.rootHash);
+console.log("publisher:", record.publisher);
+```
+
+#### Browser composition
+
+Browsers cannot hit the indexer directly (no CORS headers today), so wire **`fetchBundleFn`** through a backend proxy or a dev server proxy (see **[Example 02](/examples/02-prove-in-browser)**):
+
+```typescript
+import { JsonRpcProvider } from "ethers";
+import {
+  getRegistryContract,
+  resolveBundle,
+  parseNameSpec,
+} from "@0gzk/sdk/onchain";
+import type { BundleFiles } from "@0gzk/sdk";
+
+async function fetchBundleViaProxy(rootHash: string): Promise<BundleFiles> {
+  const tar = await fetch(`/0g-storage/file?root=${rootHash}`).then((r) => r.arrayBuffer());
+  // gunzip + untar in the tab (see Example 02 for ~50 lines of code).
+  return await unpackTarGz(new Uint8Array(tar));
+}
+
+const registry = getRegistryContract(
+  new JsonRpcProvider("https://evmrpc-testnet.0g.ai"),
+  undefined,
+  16602,
+);
+
+const { record, bundle } = await resolveBundle(
+  registry,
+  parseNameSpec("age_verification"),
+  fetchBundleViaProxy,
+);
+```
+
+**`resolveBundle`** does not hard-fail when **`bundle.metadata.name`** differs from **`spec.name`** (circuits can legitimately be aliased), but the well-behaved case is that they match. Re-check the **`vkeyHash`** against the value on **`record`** before trusting the bundle in production.
+
+## Types
+
+The full shapes of **`VersionRecord`**, **`CircuitSummary`**, **`ResolvedRecord`**, and **`ResolveOptions`** live on the **[Reference](/reference)** page.
+
+Note: **`ResolveOptions`** is exported for documentation symmetry with **`getRegistryContract`** (its fields mirror **`registryAddress`** and **`chainId`**), but **no SDK function takes a `ResolveOptions` argument directly**. Treat it as a hint for your own wrapper functions.

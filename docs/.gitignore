@@ -1,0 +1,14 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# next
+.next
+out
+
+# misc
+.DS_Store
+*.log
+.env
+.env.local
+tsconfig.tsbuildinfo

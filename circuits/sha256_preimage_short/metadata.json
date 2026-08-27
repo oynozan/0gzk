@@ -1,0 +1,36 @@
+{
+  "name": "sha256_preimage_short",
+  "version": "0.1.0",
+  "description": "Prove SHA256(preimage) == hash for a fixed 32-byte preimage. Both preimage and digest are split into two 128-bit halves so they fit in BN128 field elements; this matches Solidity's bytes32 layout",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "preimageHigh": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Most-significant 128 bits of the 32-byte preimage"
+    },
+    "preimageLow": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Least-significant 128 bits of the 32-byte preimage"
+    },
+    "hashHigh": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Most-significant 128 bits of the SHA256 digest"
+    },
+    "hashLow": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Least-significant 128 bits of the SHA256 digest"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

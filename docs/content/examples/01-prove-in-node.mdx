@@ -1,0 +1,270 @@
+---
+title: "Example 01: Prove in Node"
+description: "Resolve a circuit by name from the registry, fetch from 0G Storage, prove and verify locally."
+---
+
+# Example 01: Prove in Node
+
+**Audience:** Backend engineers who want a runnable end-to-end script.
+
+**Upstream:** [`examples/01-prove-in-node`](https://github.com/0gzk/core/tree/main/examples/01-prove-in-node)
+
+This is the shortest path through the whole 0gzk stack: one short Node script resolves a name from **`CircuitRegistry`** on 0G Chain, downloads the matching bundle from **0G Storage**, generates a Groth16 proof, and verifies it locally. No private key is needed; the script only reads.
+
+## Run it
+
+```bash
+git clone https://github.com/0gzk/core.git
+cd core/examples/01-prove-in-node
+pnpm install --frozen-lockfile --ignore-workspace
+pnpm smoke
+```
+
+**`pnpm smoke`** runs **`node prove.mjs age_verification 1990`**. You should see something like:
+
+```
+[1/3] Resolving on-chain record + downloading bundle from 0G Storage...
+      version=0.1.0 rootHash=0x35d357c850... verifier=0x... (842 ms)
+[2/3] Generating Groth16 proof...
+      done (5821 ms)
+[3/3] Verifying locally...
+      verified=true
+
+{
+  "circuit": { "name": "age_verification", "version": "0.1.0" },
+  ...
+  "verified": true
+}
+```
+
+Exit code is **`0`** on success, **`1`** if **`verifyLocal`** returns **`false`**.
+
+## `package.json`
+
+```json
+{
+  "name": "0gzk-example-prove-in-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node prove.mjs",
+    "smoke": "node prove.mjs age_verification 1990"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.4",
+    "@0gzk/sdk": "^0.2.0",
+    "ethers": "^6.13.0",
+    "snarkjs": "^0.7.5"
+  },
+  "engines": { "node": ">=20" }
+}
+```
+
+Three things to notice:
+
+- **`"type": "module"`**: the script uses **`import`** syntax and top-level **`await`**.
+- **`@0gfoundation/0g-ts-sdk`** and **`snarkjs`** are listed as direct dependencies even though the script does not import them by name. They are **peer dependencies** of **`@0gzk/sdk/node`** and **`@0gzk/sdk`** respectively; installing them here is how pnpm satisfies the peers.
+- Node 20+ is required for the global **`fetch`** that the 0G TS SDK uses under the hood.
+
+## The script, end to end
+
+The whole file is 83 lines. Here it is, then a section-by-section walkthrough.
+
+```javascript
+#!/usr/bin/env node
+// node prove.mjs <name>[@<version>] [birthYear] [currentYear] [minAge]
+// Defaults satisfy age_verification@0.1.0. For other circuits, edit `inputs`.
+
+import { JsonRpcProvider } from "ethers";
+import {
+  getRegistryContract,
+  resolveBundle,
+  parseNameSpec,
+} from "@0gzk/sdk/onchain";
+import { fetchBundle } from "@0gzk/sdk/node";
+import { generateProof, verifyLocal } from "@0gzk/sdk";
+
+// Config
+const RPC_URL = process.env.OG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
+const INDEXER_URL =
+  process.env.OG_INDEXER_URL ?? "https://indexer-storage-testnet-turbo.0g.ai";
+const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
+
+// Inputs from argv
+const [, , spec = "age_verification", birthYear = "1990", currentYear = "2026", minAge = "18"] =
+  process.argv;
+
+const inputs = {
+  birthYear: Number(birthYear),
+  currentYear: Number(currentYear),
+  minAge: Number(minAge),
+};
+
+console.log(`spec     : ${spec}`);
+console.log(`rpc      : ${RPC_URL}`);
+console.log(`indexer  : ${INDEXER_URL}`);
+console.log(`inputs   : ${JSON.stringify(inputs)}`);
+console.log();
+
+// 1. Resolve + fetch bundle
+const provider = new JsonRpcProvider(RPC_URL);
+const registry = getRegistryContract(provider, REGISTRY);
+
+console.log("[1/3] Resolving on-chain record + downloading bundle from 0G Storage...");
+const t0 = Date.now();
+const { record, bundle } = await resolveBundle(
+  registry,
+  parseNameSpec(spec),
+  (rootHash) => fetchBundle(rootHash, { indexerUrl: INDEXER_URL }),
+);
+console.log(
+  `      version=${record.version} rootHash=${record.rootHash.slice(0, 12)}... ` +
+    `verifier=${record.verifier} (${Date.now() - t0} ms)`,
+);
+
+// 2. Prove
+console.log("[2/3] Generating Groth16 proof...");
+const t1 = Date.now();
+const proof = await generateProof(bundle, inputs);
+console.log(`      done (${Date.now() - t1} ms)`);
+
+// 3. Verify locally
+console.log("[3/3] Verifying locally...");
+const verified = await verifyLocal(bundle, proof);
+console.log(`      verified=${verified}`);
+console.log();
+
+// Summary
+const summary = {
+  circuit: { name: bundle.metadata.name, version: bundle.metadata.version },
+  registry: {
+    rootHash: record.rootHash,
+    vkeyHash: record.vkeyHash,
+    verifier: record.verifier,
+    publisher: record.publisher,
+    publishedAt: new Date(record.publishedAt * 1000).toISOString(),
+  },
+  inputs,
+  publicSignals: proof.publicSignals,
+  verified,
+};
+
+console.log(JSON.stringify(summary, null, 2));
+
+// 0G storage SDK leaks keep-alive sockets
+process.exit(verified ? 0 : 1);
+```
+
+### Imports
+
+```javascript
+import { JsonRpcProvider } from "ethers";
+import { getRegistryContract, resolveBundle, parseNameSpec } from "@0gzk/sdk/onchain";
+import { fetchBundle } from "@0gzk/sdk/node";
+import { generateProof, verifyLocal } from "@0gzk/sdk";
+```
+
+Each import is from a **different** SDK subpath, picked for the smallest possible surface:
+
+- **`ethers`** -> just **`JsonRpcProvider`** (read-only).
+- **`@0gzk/sdk/onchain`** -> the three helpers we need to turn a **`name@version`** into an on-chain record. None of these read the filesystem or talk to storage; they are pure ethers wrappers.
+- **`@0gzk/sdk/node`** -> only **`fetchBundle`**. We don't need **`loadConfig`** because we pass an explicit **`indexerUrl`** later.
+- **`@0gzk/sdk`** -> the isomorphic prover and verifier.
+
+### Config
+
+```javascript
+const RPC_URL = process.env.OG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
+const INDEXER_URL =
+  process.env.OG_INDEXER_URL ?? "https://indexer-storage-testnet-turbo.0g.ai";
+const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
+```
+
+Defaults target Galileo so the script works out of the box. **`OG_REGISTRY_ADDRESS`** stays **`undefined`** unless you set it, which is exactly what **`getRegistryContract`** wants: it falls back to its baked-in address map for chain **`16602`** when you pass **`undefined`**.
+
+### CLI parsing
+
+```javascript
+const [, , spec = "age_verification", birthYear = "1990", currentYear = "2026", minAge = "18"] =
+  process.argv;
+```
+
+Default-skipping destructuring on **`process.argv`**: skip **`node`** and the script path, then read four positional arguments with friendly defaults. The arguments are inherently strings; we coerce to numbers in the next block so **`generateProof`** sees real **`uint`**-friendly values.
+
+### Step 1: resolve + fetch
+
+```javascript
+const provider = new JsonRpcProvider(RPC_URL);
+const registry = getRegistryContract(provider, REGISTRY);
+// ...
+const { record, bundle } = await resolveBundle(
+  registry,
+  parseNameSpec(spec),
+  (rootHash) => fetchBundle(rootHash, { indexerUrl: INDEXER_URL }),
+);
+```
+
+The third argument to **`resolveBundle`** is a callback because the same helper has to work in the browser. In Node we hand it **`fetchBundle`** from **`@0gzk/sdk/node`**; in the browser you would hand it a function that fetches the bundle through your own proxy. Either way **`resolveBundle`**:
+
+1. Calls **`getLatest`** (because **`parseNameSpec("age_verification")`** returns no version) to learn the version and the **`rootHash`**.
+2. Calls the callback with that hash.
+3. Returns the **`record`** and the **`bundle`** together so we don't lose the on-chain metadata.
+
+`bundle` is a **`BundleFiles`** with **`wasm`**, **`zkey`**, parsed **`vkey`**, and **`metadata`** ready for snarkjs.
+
+### Step 2: prove
+
+```javascript
+const proof = await generateProof(bundle, inputs);
+```
+
+**`generateProof`** runs **`validateInputs`** first; if any field is missing or the wrong shape it throws **`InputValidationError`** with every issue at once (see **[SDK -> Core](/sdk/core)**). Then it calls **`snarkjs.groth16.fullProve`** with the wasm and zkey as in-memory buffers, never touching disk.
+
+### Step 3: verify
+
+```javascript
+const verified = await verifyLocal(bundle, proof);
+```
+
+A pure local check: **`snarkjs.groth16.verify(bundle.vkey, proof.publicSignals, proof.proof)`**. Returns **`false`** for an invalid proof; rejects only when something is structurally wrong.
+
+### Summary and exit
+
+```javascript
+const summary = {
+  circuit: { name: bundle.metadata.name, version: bundle.metadata.version },
+  registry: {
+    rootHash: record.rootHash,
+    vkeyHash: record.vkeyHash,
+    verifier: record.verifier,
+    publisher: record.publisher,
+    publishedAt: new Date(record.publishedAt * 1000).toISOString(),
+  },
+  inputs,
+  publicSignals: proof.publicSignals,
+  verified,
+};
+
+console.log(JSON.stringify(summary, null, 2));
+process.exit(verified ? 0 : 1);
+```
+
+Two things to call out:
+
+- **`record.publishedAt`** is a Unix timestamp in seconds; multiplying by **`1000`** gets you milliseconds for **`Date`**.
+- The explicit **`process.exit`** is a workaround for an upstream quirk: the 0G TS SDK keeps keep-alive sockets open after a download, which would otherwise pin Node's event loop. Forcing a clean exit also lets CI scripts read the exit code right away.
+
+## Environment
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| **`OG_RPC_URL`** | **`https://evmrpc-testnet.0g.ai`** | Galileo RPC for the registry read. |
+| **`OG_INDEXER_URL`** | **`https://indexer-storage-testnet-turbo.0g.ai`** | Storage indexer used by **`fetchBundle`**. |
+| **`OG_REGISTRY_ADDRESS`** | (built-in for chain 16602) | Override the registry address if you've deployed a fork. |
+
+## Exercises
+
+- Swap the spec to another reference circuit (**`poseidon_preimage`**, **`merkle_membership`**) and update the **`inputs`** object using the bundle's **`metadata.inputs`** as the source of truth.
+- Pass an explicit third argument to **`fetchBundle`** (a directory path) and rerun. Watch how the bundle reuses the directory across runs (the SDK doesn't enforce a cache, so this is your hook for one).
+- Catch **`InputValidationError`** around **`generateProof`** and pretty-print **`err.issues`**.

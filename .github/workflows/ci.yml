@@ -1,0 +1,167 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Allow only one CI run per ref at a time, cancel older runs on new pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    name: SDK + CLI (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build SDK + CLI
+        run: pnpm --filter @0gzk/sdk --filter @0gzk/cli run build
+
+      - name: Typecheck SDK + CLI
+        run: pnpm --filter @0gzk/sdk --filter @0gzk/cli run lint
+
+      - name: Run Vitest (unit + integration; e2e excluded)
+        run: pnpm --filter @0gzk/sdk --filter @0gzk/cli run test
+
+  contracts:
+    name: Contracts (Foundry)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/contracts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Show Foundry version
+        run: forge --version
+
+      - name: Install forge-std (idempotent)
+        run: |
+          if [ ! -d "lib/forge-std" ]; then
+            forge install foundry-rs/forge-std
+          fi
+
+      - name: forge fmt --check
+        run: forge fmt --check
+
+      - name: forge build
+        run: forge build --sizes
+
+      - name: forge test
+        run: forge test -vvv
+
+  examples-node:
+    name: "Examples (Node smokes against live Galileo)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - 01-prove-in-node
+          - 04-resolve-by-name
+
+    defaults:
+      run:
+        working-directory: examples/${{ matrix.example }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Examples are deliberately NOT in the root pnpm workspace. They
+      # consume the published @0gzk/sdk from npm so each install doubles
+      # as a release smoke test of the actual tarball.
+      - name: pnpm install (standalone)
+        run: pnpm install --frozen-lockfile --ignore-workspace
+
+      - name: pnpm smoke
+        env:
+          # Smoke runs against Galileo testnet to keep CI free — mainnet
+          # would burn real gas on every PR. Examples ship with mainnet as
+          # the default so end users hit the live registry; this override
+          # is only for the CI lane.
+          OG_NETWORK: testnet
+          OG_RPC_URL: https://evmrpc-testnet.0g.ai
+          OG_INDEXER_URL: https://indexer-storage-testnet-turbo.0g.ai
+        run: pnpm smoke
+
+  examples-forge:
+    name: "Examples (Foundry hermetic)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: examples/03-verify-on-chain
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Show Foundry version
+        run: forge --version
+
+      - name: Install forge-std (idempotent)
+        run: |
+          if [ ! -d "lib/forge-std" ]; then
+            forge install foundry-rs/forge-std
+          fi
+
+      - name: forge build
+        run: forge build
+
+      - name: forge test (hermetic, no network)
+        run: forge test -vv

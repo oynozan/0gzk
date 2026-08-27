@@ -1,0 +1,325 @@
+---
+title: "Example 05: Publish your circuit"
+description: ".circom file to a CircuitRegistry entry, with two equivalent build paths."
+---
+
+# Example 05: Publish your circuit
+
+**Audience:** Circuit authors going from a freshly-written **`.circom`** file to a discoverable entry in **`CircuitRegistry`** on 0G Chain.
+
+**Upstream:** [`examples/05-publish-your-own`](https://github.com/0gzk/core/tree/main/examples/05-publish-your-own)
+
+After this, anyone with **`@0gzk/cli`** or **`@0gzk/sdk`** can prove against your circuit by **`name@version`**.
+
+## Prerequisites
+
+| Tool | Why | How |
+| --- | --- | --- |
+| **`circom`** 2.x | Compile **`.circom`** to **`.r1cs`** + **`.wasm`** | **`cargo install --git https://github.com/iden3/circom.git`** |
+| Node 20+ | Runs **`snarkjs`** and **`@0gzk/cli`** | nvm, asdf, etc. |
+| **`bash`** + **`curl`** | The bash build path and Powers of Tau download | standard on macOS / Linux / WSL / Git Bash |
+| Galileo-funded private key | Pays for upload + registry transactions | [faucet.0g.ai](https://faucet.0g.ai) |
+
+## The circuit
+
+```circom
+// private_multiply.circom
+pragma circom 2.1.5;
+
+template Multiply() {
+    signal input x;
+    signal input y;
+    signal output out;
+    out <== x * y;
+}
+
+component main = Multiply();
+```
+
+**`x`** and **`y`** are private (no **`{public}`** tag, so they default to private witness signals). **`out`** is public because it is a circuit output. A proof says *"I know two factors of `out`"* without revealing either factor.
+
+## The metadata
+
+```json
+{
+  "name": "private_multiply",
+  "version": "0.1.0",
+  "description": "Proves knowledge of two factors x, y of a public product `out`, without revealing x or y.",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "x": { "type": "uint", "visibility": "private", "description": "First factor (kept secret)." },
+    "y": { "type": "uint", "visibility": "private", "description": "Second factor (kept secret)." }
+  },
+  "outputs": {
+    "out": { "type": "uint", "description": "Public product: x * y." }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}
+```
+
+`metadata.json` is the **source of truth for bundle layout**:
+
+- **`inputs`** drives **`validateInputs`**: every key must be present, every value must satisfy its **`type`**, **`visibility`** controls whether snarkjs treats the signal as public or private witness data.
+- **`outputs`** is descriptive. The SDK does not validate outputs, but **`Example 02`**'s schema-driven UI uses it for nice signal naming, and explorers use it for documentation.
+- **`files`** determines what **`readBundleFromDir`**, **`assembleBundle`**, and **`fetchBundleFromStorage`** look for inside the bundle. Renaming **`circuit.wasm`** to **`prover.wasm`** is supported as long as **`files.wasm`** points at the new name.
+
+## Example input
+
+```json
+{
+  "x": 3,
+  "y": 5
+}
+```
+
+A two-line file used by **`0gzk prove`** after publish; **`out`** is computed by the circuit (so it goes through **`public.json`**, not through the input).
+
+## Build path A: `build.sh`
+
+Pure bash + **`npx snarkjs`**, no JS dependencies of its own:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+CIRCUIT_NAME="private_multiply"
+PTAU_SIZE=12
+
+# Layout
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/build"
+BUNDLE_DIR="$SCRIPT_DIR/circuit_bundle"
+PTAU_CACHE_DIR="$SCRIPT_DIR/.cache/ptau"
+PTAU_FILE="powersOfTau28_hez_final_${PTAU_SIZE}.ptau"
+PTAU_URL="https://storage.googleapis.com/zkevm/ptau/${PTAU_FILE}"
+mkdir -p "$BUILD_DIR" "$BUNDLE_DIR" "$PTAU_CACHE_DIR"
+
+# 1. circom -> r1cs + wasm
+circom "$SCRIPT_DIR/$CIRCUIT_NAME.circom" --r1cs --wasm --sym -o "$BUILD_DIR"
+
+# 2. Powers of Tau (cached, downloaded once)
+PTAU_PATH="$PTAU_CACHE_DIR/$PTAU_FILE"
+[ -f "$PTAU_PATH" ] || curl -fSL --output "$PTAU_PATH.partial" "$PTAU_URL" && mv "$PTAU_PATH.partial" "$PTAU_PATH"
+
+# 3-5. groth16 setup, contribute, export vkey + Solidity verifier
+npx --yes snarkjs groth16 setup "$BUILD_DIR/${CIRCUIT_NAME}.r1cs" "$PTAU_PATH" "$BUILD_DIR/circuit_0000.zkey"
+ENTROPY="$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
+npx --yes snarkjs zkey contribute "$BUILD_DIR/circuit_0000.zkey" "$BUILD_DIR/circuit_final.zkey" \
+    --name="0gzk-example-${CIRCUIT_NAME}" -v -e="$ENTROPY"
+npx --yes snarkjs zkey export verificationkey "$BUILD_DIR/circuit_final.zkey" "$BUILD_DIR/verification_key.json"
+npx --yes snarkjs zkey export solidityverifier "$BUILD_DIR/circuit_final.zkey" "$BUILD_DIR/verifier.sol"
+
+# 6. Lay out circuit_bundle/ for `0gzk publish`
+cp "$BUILD_DIR/${CIRCUIT_NAME}_js/${CIRCUIT_NAME}.wasm" "$BUNDLE_DIR/circuit.wasm"
+cp "$BUILD_DIR/circuit_final.zkey"                     "$BUNDLE_DIR/circuit_final.zkey"
+cp "$BUILD_DIR/verification_key.json"                  "$BUNDLE_DIR/verification_key.json"
+cp "$BUILD_DIR/verifier.sol"                           "$BUNDLE_DIR/verifier.sol"
+cp "$SCRIPT_DIR/metadata.json"                         "$BUNDLE_DIR/metadata.json"
+```
+
+Block by block:
+
+1. **`circom ... --r1cs --wasm --sym -o build`**: compiles the circuit. **`--sym`** drops a symbol table that snarkjs uses for debugging; not strictly required for proving.
+2. **Powers of Tau**: a public, one-time setup file from the Hermez ceremony. **`size = 12`** supports up to **`2^12 = 4096`** constraints, which is overkill for **`x * y`**. Bigger circuits need a bigger size.
+3. **`groth16 setup`** produces an initial **`zkey`** that pairs the r1cs with that ptau.
+4. **`zkey contribute`** adds a random local contribution (the **`ENTROPY`** line generates 32 random bytes). This is the snarkjs equivalent of "phase 2" so the final zkey is not exactly the same as the initial one.
+5. **`zkey export verificationkey`** and **`zkey export solidityverifier`** produce **`verification_key.json`** (consumed by **`verifyLocal`**) and **`verifier.sol`** (deployed for on-chain verification).
+6. The final **`cp`** block lays out **`circuit_bundle/`** with the exact filenames **`metadata.json`** declares.
+
+## Build path B: `build.mjs`
+
+Same end result, but middle steps go through **`@0gzk/sdk/build`**:
+
+```javascript
+#!/usr/bin/env node
+import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildCircuitBundle } from "@0gzk/sdk/build";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const CIRCUIT_NAME = "private_multiply";
+const CIRCUIT_VERSION = "0.1.0";
+const PTAU_SIZE = 12;
+
+const buildDir = path.join(here, "build");
+const bundleDir = path.join(here, "circuit_bundle");
+const skipPublish = process.argv.includes("--no-publish");
+
+await loadDotenv(path.join(here, ".env"));
+await fs.mkdir(buildDir, { recursive: true });
+
+// 1. circom -> r1cs + wasm. The SDK does not shell out to non-npm tools, so
+// the example handles compilation explicitly.
+await runCircom([
+  path.join(here, `${CIRCUIT_NAME}.circom`),
+  "--r1cs", "--wasm", "--sym", "-o", buildDir,
+]);
+
+// 2-6. Powers of Tau download/cache, groth16 setup + contribution, vkey/
+// verifier export, bundle assembly: one SDK call.
+const result = await buildCircuitBundle({
+  r1csPath: path.join(buildDir, `${CIRCUIT_NAME}.r1cs`),
+  wasmPath: path.join(buildDir, `${CIRCUIT_NAME}_js`, `${CIRCUIT_NAME}.wasm`),
+  metadataPath: path.join(here, "metadata.json"),
+  outputDir: bundleDir,
+  ptauSize: PTAU_SIZE,
+  contributionName: `0gzk-example-${CIRCUIT_NAME}`,
+  onProgress: (e) => console.log(`==> [${e.stage}] ${e.message}`),
+});
+
+console.log(`Build done. Bundle ready at ${result.bundleDir}`);
+console.log(`vkeyHash: ${result.vkeyHash}`);
+
+if (skipPublish) {
+  console.log("Skipping publish (--no-publish).");
+  process.exit(0);
+}
+if (!process.env.OG_PRIVATE_KEY) {
+  console.error("error: OG_PRIVATE_KEY is not set.");
+  process.exit(1);
+}
+
+// 7. Hand the bundle to @0gzk/cli for upload + register.
+const exitCode = await runPublish();
+if (exitCode !== 0) process.exit(exitCode);
+```
+
+The helper functions matter for cross-platform behavior:
+
+```javascript
+function runCircom(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("circom", args, {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+    child.on("error", (err) => {
+      if (err.code === "ENOENT") {
+        reject(new Error("circom not on PATH. Install: https://docs.circom.io/..."));
+      } else {
+        reject(err);
+      }
+    });
+    child.on("exit", (code) =>
+      code === 0 ? resolve() : reject(new Error(`circom exited with code ${code}`)),
+    );
+  });
+}
+
+function runPublish() {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "--yes",
+      "@0gzk/cli@^0.2.1",
+      "publish",
+      "circuit_bundle",
+      "--register",
+      "--metadata-uri",
+      `0gzk://${CIRCUIT_NAME}@${CIRCUIT_VERSION}`,
+      "--wait",
+      "10m",
+    ];
+    const child = spawn("npx", args, {
+      stdio: "inherit",
+      cwd: here,
+      env: process.env,
+      shell: process.platform === "win32",
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+}
+```
+
+Cross-platform notes:
+
+- **`shell: process.platform === "win32"`** is **required** on Windows: PowerShell does not let you spawn **`.cmd`** files (which is how **`npx`** and Rust-installed **`circom`** are exposed) without going through a shell. On macOS / Linux this stays **`false`** so we get a real exec, not an extra shell layer.
+- **`stdio: "inherit"`** streams the CLI's progress logs (root hash, segment counts, finalization, registry tx hash) straight to your terminal.
+
+The script also ships a tiny **`loadDotenv`** parser so the example does not pull in **`dotenv`** as a dependency just for one read.
+
+## Which path should I pick?
+
+|  | **`build.sh`** | **`build.mjs`** |
+| --- | --- | --- |
+| Dependencies | bash + curl + snarkjs CLI (via npx) | Node + **`@0gzk/sdk`** |
+| Where to lift from | Drop into any repo that already has bash | Drop into any Node script |
+| Output | **`circuit_bundle/`** | **`circuit_bundle/`** + typed **`vkeyHash`** + chained publish |
+| Progress events | shell echoes | **`BuildProgress`** callback for TUIs / structured logs |
+| Best for | one-shot circuits | automated pipelines and CI |
+
+Both produce identical bundle layouts because both honor **`metadata.json`**. The only thing **`build.mjs`** can do that **`build.sh`** cannot is hand you a typed **`vkeyHash`** before publish, which is useful if you want to call **`CircuitRegistry.publishVersion`** directly without going through the CLI.
+
+## Publish step
+
+After **`circuit_bundle/`** exists:
+
+```bash
+export OG_PRIVATE_KEY=0x...
+0gzk publish circuit_bundle \
+  --register \
+  --metadata-uri "0gzk://private_multiply@0.1.0" \
+  --wait 10m
+```
+
+What this does (see **[CLI -> publish](/cli)** for the full reference):
+
+1. Packs **`circuit_bundle/`** into a gzip tarball.
+2. Uploads to 0G Storage; prints **`rootHash`** as soon as the Merkle tree is computed.
+3. Because of **`--register`**: calls **`createCircuit(name)`** if the name is new, then **`publishVersion(name, version, rootHash, vkeyHash, verifier, metadataURI)`**.
+4. Drops **`.published.json`** into the bundle directory with **`rootHash`**, **`txHash`**, **`txSeq`**, and the registry receipt.
+
+If finalization runs longer than **`--wait`**, the CLI exits with code **`2`** but still prints the **`rootHash`**. Recovery is a single command:
+
+```bash
+0gzk registry register 0x<rootHash> --bundle circuit_bundle
+```
+
+This reads **`metadata.json`** and **`verification_key.json`** locally to recompute **`vkeyHash`**, then calls **`publishVersion`** with the rootHash you already have. No re-upload.
+
+## Going fully programmatic
+
+If you would rather skip the CLI entirely, the SDK exposes every step:
+
+```javascript
+import { buildCircuitBundle } from "@0gzk/sdk/build";
+import { uploadBundle, loadConfig } from "@0gzk/sdk/node";
+import { getRegistryContract } from "@0gzk/sdk/onchain";
+import { JsonRpcProvider, Wallet } from "ethers";
+
+const built = await buildCircuitBundle({ /* same opts as build.mjs */ });
+
+const config = loadConfig();
+const { rootHash } = await uploadBundle(built.bundleDir, config);
+
+const wallet = new Wallet(config.privateKey, new JsonRpcProvider(config.rpcUrl));
+const registry = getRegistryContract(wallet);
+
+// First-time publishers also call createCircuit(name) once before this.
+await registry.publishVersion(
+  built.metadata.name,
+  built.metadata.version,
+  rootHash,
+  built.vkeyHash,
+  /* verifier addr */ "0x0000000000000000000000000000000000000000",
+  `0gzk://${built.metadata.name}@${built.metadata.version}`,
+);
+```
+
+That is the whole "I have a **`.circom`**, please put it on chain" pipeline in roughly twenty lines, with no shellouts after **`circom`** itself.
+
+## Cleaning up
+
+```bash
+rm -rf build/ circuit_bundle/ .cache/ node_modules/
+```
+
+**`build/`** is around 10 MB (intermediate artifacts), **`.cache/`** around 10 MB (the cached Powers of Tau), **`circuit_bundle/`** around 1 MB. The cache is yours to keep across builds.

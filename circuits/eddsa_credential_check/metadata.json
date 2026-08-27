@@ -1,0 +1,61 @@
+{
+  "name": "eddsa_credential_check",
+  "version": "0.1.0",
+  "description": "Verifies an issuer's Baby Jubjub EdDSA signature over Poseidon(subject, claim) without revealing the subject; emits a per-context nullifier",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "subject": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Holder identity that the issuer signed off on"
+    },
+    "claim": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Public statement the issuer attested to (e.g. Poseidon(\"isAdult\"))"
+    },
+    "issuerAx": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Baby Jubjub x coordinate of the issuer's public key"
+    },
+    "issuerAy": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Baby Jubjub y coordinate of the issuer's public key"
+    },
+    "sigS": {
+      "type": "field",
+      "visibility": "private",
+      "description": "EdDSA signature scalar"
+    },
+    "sigR8x": {
+      "type": "field",
+      "visibility": "private",
+      "description": "EdDSA signature R point x"
+    },
+    "sigR8y": {
+      "type": "field",
+      "visibility": "private",
+      "description": "EdDSA signature R point y"
+    },
+    "contextId": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Application / session identifier; namespaces the nullifier"
+    }
+  },
+  "outputs": {
+    "nullifier": {
+      "type": "field",
+      "description": "Poseidon(subject, contextId). Use to detect credential reuse"
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

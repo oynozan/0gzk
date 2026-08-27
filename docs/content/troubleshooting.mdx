@@ -1,0 +1,57 @@
+---
+title: Troubleshooting
+description: Common pitfalls when bundling snarkjs, calling 0G APIs from the browser, or running the CLI.
+---
+
+# Troubleshooting
+
+## Next.js / webpack: `Module not found: fs`
+
+**snarkjs** pulls Node builtins. Keep **server-only** imports inside **`import "server-only"`** routes or `next.config` **server externals**, and never import **`@0gzk/sdk/node`** from a Client Component.
+
+If you must bundle snarkjs for the client, add the webpack fallback recommended in [**USAGE.md**](https://github.com/0gzk/core/blob/main/packages/sdk/USAGE.md).
+
+## Browser + 0G indexer CORS
+
+Direct browser fetches against storage indexers may hit **missing CORS** headers. The **[Example 02: Prove in browser](/examples/02-prove-in-browser)** project uses a **dev proxy** so your Vite or Next dev server forwards traffic. In production, proxy fetches through **your** backend.
+
+## CLI exits the process after proving
+
+**snarkjs** can leave worker threads alive. The CLI intentionally calls **`process.exit`** when the command finishes so your terminal is not stuck. This is expected.
+
+## `examples/` folder looks empty
+
+The **`examples/`** directory ships directly in the repo — a plain `git clone` brings it in. If it looks empty, you are likely on a stale checkout; run `git pull`. Then follow any example README.
+
+## `UploadTimeoutError` after `0gzk publish` or `uploadBundle`
+
+0G Storage finalization runs asynchronously and can outlast the default 5-minute budget. When it does, the SDK throws **`UploadTimeoutError`** and the CLI exits with code **`2`** (even after a successful **`--register`**). The error usually carries a **`rootHash`**, meaning the data is already submitted on chain; you just stopped waiting.
+
+Recovery is one command, using the **`rootHash`** the CLI printed:
+
+```bash
+0gzk registry register 0x<rootHash> --bundle ./circuit_bundle
+```
+
+This recomputes **`(name, version, vkeyHash)`** from the local bundle and calls **`CircuitRegistry.publishVersion`** without re-uploading. From a Node script, do the same thing programmatically:
+
+```typescript
+import { UploadTimeoutError } from "@0gzk/sdk/node";
+
+try {
+  await uploadBundle(dir, config);
+} catch (err) {
+  if (err instanceof UploadTimeoutError && err.rootHash) {
+    console.warn("upload still finalizing; rootHash:", err.rootHash);
+    // Register later, retry the upload, or just exit and let the user recover.
+  } else {
+    throw err;
+  }
+}
+```
+
+If you want to wait indefinitely instead, pass **`--wait forever`** (CLI) or **`{ timeoutMs: Infinity }`** (SDK).
+
+## Registry record vs malicious bundle
+
+Always **verify `vkeyHash`** against **`verification_key.json`** after download. The registry points to content; it does not attest witness correctness for you.

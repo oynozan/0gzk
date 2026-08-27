@@ -1,0 +1,255 @@
+---
+title: "@0gzk/sdk/build"
+description: "Powers of Tau, Groth16 setup, vkey hashing, and bundle assembly in JavaScript."
+---
+
+# Build: `@0gzk/sdk/build`
+
+This subpath is **Node only**. It mirrors the steps that **`build.sh`** in **[Example 05](/examples/05-publish-your-own)** runs against **`npx snarkjs`**, but as a typed JavaScript API. Everything except **`circom`** itself (which has no JS bindings) is available.
+
+See **[Reference](/reference)** for the shapes of **`BuildStage`**, **`BuildProgress`**, **`BundleFileMap`**, and **`PtauIntegrityError`**.
+
+## When to use it
+
+Pick this subpath when you want:
+
+- A single Node script that goes from **`.r1cs`** + **`.wasm`** to a finished **`circuit_bundle/`** (handy in CI, custom build pipelines, or programmatic publishing chains).
+- Typed **`BuildProgress`** events to drive a TUI / progress bar.
+- A **`vkeyHash`** you can hand straight to **`CircuitRegistry.publishVersion`** without re-reading **`verification_key.json`** off disk.
+
+If you only need the shell flow, **`build.sh`** in Example 05 is a simpler alternative.
+
+## End-to-end: `buildCircuitBundle`
+
+```typescript
+function buildCircuitBundle(
+  options: BuildCircuitBundleOptions,
+): Promise<BuildCircuitBundleResult>;
+
+interface BuildCircuitBundleOptions {
+  r1csPath: string;
+  wasmPath: string;
+  metadataPath: string;
+  outputDir: string;
+  ptauSize: number;                                       // e.g. 12 for ~4k constraints
+  ptauCacheDir?: string;                                  // defaults to defaultPtauCacheDir()
+  contributionName?: string;                              // default "0gzk-sdk-bootstrap"
+  entropy?: string;                                       // default: 32 random bytes (hex)
+  workDir?: string;                                       // default: OS temp dir, removed in finally
+  onProgress?: (event: BuildProgress) => void;
+}
+
+interface BuildCircuitBundleResult extends AssembleBundleResult {
+  metadata: CircuitMetadata;
+  ptauPath: string;
+}
+```
+
+Walks five stages and emits a **`BuildProgress`** event at the start of each:
+
+1. **`fetching-ptau`**: ensures **`powersOfTau28_hez_final_<size>.ptau`** is present in **`ptauCacheDir`** with the correct BLAKE2b digest (downloads if missing).
+2. **`setup`**: runs **`snarkjs.zKey.newZKey`** then **`zKey.contribute`** with **`contributionName`** and **`entropy`** to produce **`circuit_final.zkey`**.
+3. **`exporting-vkey`**: exports **`verification_key.json`**.
+4. **`exporting-verifier`**: exports the Solidity **`verifier.sol`** using bundled snarkjs templates.
+5. **`assembling`**: copies wasm, zkey, vkey, verifier, and **`metadata.json`** into **`outputDir`** using the filenames in **`metadata.files`**, and recomputes **`vkeyHash`** from the written vkey.
+
+```typescript
+import { buildCircuitBundle } from "@0gzk/sdk/build";
+
+const result = await buildCircuitBundle({
+  r1csPath: "./build/circuit.r1cs",
+  wasmPath: "./build/circuit_js/circuit.wasm",
+  metadataPath: "./metadata.json",
+  outputDir: "./circuit_bundle",
+  ptauSize: 12,
+  onProgress: (e) => console.log(`==> [${e.stage}] ${e.message}`),
+});
+
+console.log("bundle ready at", result.bundleDir);
+console.log("vkeyHash       ", result.vkeyHash);
+```
+
+A finished **`BuildCircuitBundleResult`** is everything **`uploadBundle`** needs:
+
+```typescript
+import { uploadBundle, loadConfig } from "@0gzk/sdk/node";
+
+const config = loadConfig();
+const upload = await uploadBundle(result.bundleDir, config);
+console.log("rootHash:", upload.rootHash);
+```
+
+Throws whatever the underlying stage threw: **`PtauIntegrityError`**, snarkjs errors, **`Error("Missing required file in metadata: <name>")`** from **`assembleBundle`**, and the usual fs errors.
+
+## Powers of Tau helpers
+
+### `PTAU_BLAKE2B`
+
+```typescript
+const PTAU_BLAKE2B: Readonly<Record<number, string>>;
+```
+
+BLAKE2b-512 hex digests of the Hermez ceremony files. Currently keyed by **`12`** and **`13`**; if you need a different size, pass **`skipIntegrityCheck: true`** to **`fetchPowersOfTau`** and verify integrity another way.
+
+### `ptauFileName`, `ptauUrl`
+
+```typescript
+function ptauFileName(size: number): string;             // powersOfTau28_hez_final_<size>.ptau
+function ptauUrl(size: number): string;                  // Hermez GCS URL
+```
+
+### `defaultPtauCacheDir`
+
+```typescript
+function defaultPtauCacheDir(): string;
+```
+
+Resolution order:
+
+1. **Windows**: **`%LOCALAPPDATA%/0gzk/ptau`**.
+2. **`$XDG_CACHE_HOME/0gzk/ptau`** when set.
+3. **`~/.cache/0gzk/ptau`** otherwise.
+
+### `blake2b512File`
+
+```typescript
+function blake2b512File(filePath: string): Promise<string>;
+```
+
+Streaming hex digest, used internally to verify the ptau file. Exposed for callers who want to add their own integrity checks.
+
+### `FetchPtauOptions`, `fetchPowersOfTau`
+
+```typescript
+interface FetchPtauOptions {
+  cacheDir?: string;
+  skipIntegrityCheck?: boolean;
+}
+
+function fetchPowersOfTau(
+  size: number,
+  options?: FetchPtauOptions,
+): Promise<string>; // absolute path to the verified file
+```
+
+Downloads to **`cacheDir`** (or **`defaultPtauCacheDir()`**) using a temp **`.partial`** file and an atomic rename. Always verifies against **`PTAU_BLAKE2B[size]`** unless **`skipIntegrityCheck`** is set.
+
+```typescript
+import { fetchPowersOfTau } from "@0gzk/sdk/build";
+
+const ptauPath = await fetchPowersOfTau(12);
+console.log("ptau ready:", ptauPath);
+```
+
+Throws **`Error`** when no digest is registered for **`size`** and **`skipIntegrityCheck`** is unset; throws on HTTP / rate-limit failures; throws **`PtauIntegrityError`** when the hash on disk does not match.
+
+### `PtauIntegrityError`
+
+See **[Reference -> Errors](/reference#ptauintegrityerror)**. The error carries **`size`**, **`expected`**, **`actual`**, and **`filePath`** so you can offer the user a one-click "delete and retry" workflow.
+
+## Groth16 setup
+
+### `setupGroth16`
+
+```typescript
+interface SetupGroth16Options {
+  r1csPath: string;
+  ptauPath: string;
+  outDir: string;
+  contributionName?: string;
+  entropy?: string;
+}
+
+interface SetupGroth16Result {
+  zkeyPath: string;
+  vkeyPath: string;
+  verifierSolPath: string;
+  vkey: unknown;
+  verifierSol: string;
+}
+
+function setupGroth16(
+  options: SetupGroth16Options,
+): Promise<SetupGroth16Result>;
+```
+
+Runs **`snarkjs.zKey.newZKey`** (initial zkey), **`zKey.contribute`** (final zkey with random entropy when not supplied), then exports **`verification_key.json`** and a Solidity verifier using the EJS templates bundled with **snarkjs**. The intermediate **`circuit_0000.zkey`** is deleted before returning.
+
+Use this directly only if you want a custom assembly step (for example, copying **`verifier.sol`** into a separate Foundry project). For the common case, **`buildCircuitBundle`** wires it together for you.
+
+## Bundle assembly
+
+### `assembleBundle`
+
+```typescript
+interface AssembleBundleOptions {
+  wasmPath: string;
+  zkeyPath: string;
+  vkeyPath: string;
+  verifierSolPath?: string;
+  metadataPath: string;
+  outputDir: string;
+}
+
+interface AssembleBundleResult {
+  bundleDir: string;
+  files: BundleFileMap;
+  metadata: CircuitMetadata;
+  vkeyHash: `0x${string}`;
+}
+
+function assembleBundle(
+  options: AssembleBundleOptions,
+): Promise<AssembleBundleResult>;
+```
+
+Copies each artifact into **`outputDir`** using the filename declared in **`metadata.files`** (so the same metadata can rename your wasm or zkey on the way out), then re-reads the written vkey and computes **`vkeyHash`** via **`hashVkey`**. Throws when **`metadata.files`** is missing **`wasm`**, **`zkey`**, or **`vkey`**.
+
+### `hashVkey`
+
+```typescript
+function hashVkey(vkey: unknown): `0x${string}`;
+```
+
+**`keccak256(utf8(canonicalJSON(vkey)))`**, computed with **ethers**. This is the exact value the on-chain **`CircuitRegistry`** stores, so you can compare it to **`record.vkeyHash`** after fetching a bundle to detect tampering.
+
+### `canonicalJSON`
+
+```typescript
+function canonicalJSON(value: unknown): string;
+```
+
+Stable JSON serializer (object keys sorted, no whitespace). Use it when you need to hash any structured artifact deterministically.
+
+## Minimal standalone script
+
+If you compile your own **`.r1cs`** elsewhere, the following Node script takes you from existing artifacts to a finished bundle, with no shell calls:
+
+```typescript
+import {
+  fetchPowersOfTau,
+  setupGroth16,
+  assembleBundle,
+} from "@0gzk/sdk/build";
+
+const ptauPath = await fetchPowersOfTau(12);
+
+const setup = await setupGroth16({
+  r1csPath: "./build/circuit.r1cs",
+  ptauPath,
+  outDir: "./build",
+});
+
+const bundle = await assembleBundle({
+  wasmPath: "./build/circuit_js/circuit.wasm",
+  zkeyPath: setup.zkeyPath,
+  vkeyPath: setup.vkeyPath,
+  verifierSolPath: setup.verifierSolPath,
+  metadataPath: "./metadata.json",
+  outputDir: "./circuit_bundle",
+});
+
+console.log(bundle.bundleDir, bundle.vkeyHash);
+```
+
+Compare with **`buildCircuitBundle`**: the only thing the higher-level function adds is staged progress events, default work-dir cleanup, and a single try / catch boundary.

@@ -1,0 +1,157 @@
+---
+title: "@0gzk/sdk (core)"
+description: "generateProof, verifyLocal, validateInputs, and the input-type system."
+---
+
+# Core: `@0gzk/sdk`
+
+This is the isomorphic surface. It only depends on **`snarkjs`** at runtime and never touches **`fs`**, **`process.env`**, or sockets, which is what makes it safe to ship to a browser.
+
+Every symbol below is also re-exported from **`@0gzk/sdk`** itself, so you can flatten your imports if you prefer.
+
+See the **[Reference](/reference)** page for the shapes of **`BundleFiles`**, **`CircuitMetadata`**, **`InputSpec`**, **`OutputSpec`**, and **`ProofResult`**.
+
+## `generateProof`
+
+```typescript
+function generateProof(
+  bundle: BundleFiles,
+  inputs: Record<string, unknown>,
+): Promise<ProofResult>;
+```
+
+Validates **`inputs`** against **`bundle.metadata.inputs`** (via **`validateInputs`** below), then calls **`snarkjs.groth16.fullProve`** with the wasm and zkey **in memory** (no temp files, no spawned processes).
+
+```typescript
+import { generateProof, verifyLocal } from "@0gzk/sdk";
+
+const { proof, publicSignals } = await generateProof(bundle, {
+  birthYear: 1990,
+  currentYear: 2026,
+  minAge: 18,
+});
+
+console.log(publicSignals); // ["1", "2026", "18"]
+const ok = await verifyLocal(bundle, { proof, publicSignals });
+```
+
+Throws:
+
+- **`InputValidationError`** when validation fails (see below).
+- Whatever **`snarkjs`** rejects with on malformed witness, mismatched **`zkey`** / **`wasm`**, or out-of-range field elements.
+
+## `verifyLocal`
+
+```typescript
+function verifyLocal(
+  bundle: BundleFiles,
+  result: ProofResult,
+): Promise<boolean>;
+```
+
+Thin wrapper around **`snarkjs.groth16.verify(bundle.vkey, result.publicSignals, result.proof)`**. Returns **`false`** for invalid proofs rather than throwing; snarkjs / verifier crashes still propagate as rejected promises.
+
+```typescript
+const ok = await verifyLocal(bundle, { proof, publicSignals });
+if (!ok) throw new Error("verifier rejected this proof");
+```
+
+## `validateInputs`
+
+```typescript
+function validateInputs(
+  raw: Record<string, unknown>,
+  metadata: CircuitMetadata,
+): ValidatedInputs;
+```
+
+Coerces every input to a canonical, snarkjs-friendly representation (**`string`** decimal or array of strings) and throws **`InputValidationError`** with **all** issues collected in one batch. **`generateProof`** calls this for you; you only need to call it directly if you want to fail fast in a UI before queuing WASM work.
+
+```typescript
+import { validateInputs, InputValidationError } from "@0gzk/sdk";
+
+try {
+  validateInputs(
+    { x: 3, y: 5 },
+    bundle.metadata, // private_multiply expects x and y
+  );
+} catch (err) {
+  if (err instanceof InputValidationError) {
+    console.error(err.issues.join("\n"));
+  }
+}
+```
+
+### Type rules
+
+The **`type`** string on each **`InputSpec`** controls coercion.
+
+| Type | Accepts | Rejected |
+| --- | --- | --- |
+| **`"uint"`** | non-negative **`bigint`**; finite non-negative integer **`number`**; **digit-only** string. | negatives, floats, **`"0x..."`**, non-numeric strings. |
+| **`"bool"`** | **`true`** / **`false`**; **`0`** / **`1`**; **`"0"`** / **`"1"`**. | anything else, including **`"true"`**. |
+| **`"field"`** | non-negative **`bigint`**; integer **`number`**; decimal string; **`0x`**-hex string. Strictly **`< BN128_FIELD_MODULUS`**. | negatives, **`>=`** modulus, non-numeric strings. |
+| **`"<T>[]"`** | array whose length matches **`spec.length`** (when set) and whose elements satisfy **`T`**'s rules. | wrong length, wrong element type. |
+| unknown | strings, numbers, bigints passed through as-is (forward compatibility). | objects, arrays for non-array types. |
+
+Validation collects every problem before throwing, so a request with three bad fields gets three lines back, not one. Example:
+
+```typescript
+import { validateInputs, InputValidationError } from "@0gzk/sdk";
+
+try {
+  validateInputs(
+    { birthYear: -1, currentYear: "twenty twenty six", minAge: 18 },
+    metadata, // age_verification's metadata
+  );
+} catch (err) {
+  if (err instanceof InputValidationError) {
+    console.log(err.issues);
+    // [
+    //   "birthYear: uint cannot be negative (got -1)",
+    //   "currentYear: uint string must be digits only (got \"twenty twenty six\")",
+    // ]
+  }
+}
+```
+
+`validateInputs` also enforces **exact key equality** between **`raw`** and **`metadata.inputs`**: missing keys produce **`"Missing required input: <name>"`** and stray ones produce **`"Unknown input: <name> (not in circuit schema)"`**.
+
+## `InputValidationError`
+
+```typescript
+class InputValidationError extends Error {
+  readonly issues: string[];
+}
+```
+
+See **[Reference -> Errors](/reference#inputvalidationerror)** for the full description.
+
+## `BN128_FIELD_MODULUS`
+
+```typescript
+const BN128_FIELD_MODULUS =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+```
+
+The bn128 (alt-bn128) scalar field modulus. **`"field"`** inputs must satisfy **`0 <= value < BN128_FIELD_MODULUS`**. You rarely need this directly; it is exported so you can pre-check large inputs before calling **`validateInputs`** (for example to render a useful error in a UI immediately).
+
+## `ValidatedScalar`, `ValidatedValue`, `ValidatedInputs`
+
+```typescript
+type ValidatedScalar = string | number | bigint;
+type ValidatedValue = ValidatedScalar | ValidatedScalar[];
+type ValidatedInputs = Record<string, ValidatedValue>;
+```
+
+The return type of **`validateInputs`**. In practice every **`uint`**, **`bool`**, and **`field`** input is emitted as a **`string`** of decimal digits (which is what snarkjs is happiest with); unknown scalar types pass through untouched.
+
+## Browser checklist
+
+When you ship **`@0gzk/sdk`** to the browser:
+
+1. Only import from **`@0gzk/sdk`** (never **`/node`**) and **`@0gzk/sdk/onchain`**.
+2. Provide **`wasm`** / **`zkey`** as **`Uint8Array`** in **`BundleFiles`** (fetch them yourself, or use the in-tab gunzip + untar pattern from **[Example 02](/examples/02-prove-in-browser)**).
+3. **`snarkjs`** ships some CommonJS bits; Vite needs **`optimizeDeps.include: ["snarkjs"]`** to pre-bundle them. The browser example shows the full config.
+
+For bundler-specific tips, see **[Troubleshooting](/troubleshooting)**.

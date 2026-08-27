@@ -1,0 +1,401 @@
+---
+title: CLI
+description: "Full reference for the 0gzk command line: publish, fetch, prove, registry."
+---
+
+# CLI
+
+The **`0gzk`** binary wraps the SDK with shell-friendly ergonomics: pack and upload bundles, fetch by **`rootHash`**, prove against any of three sources, and browse the on-chain registry.
+
+```bash
+npm install -g @0gzk/cli
+0gzk --version
+```
+
+## Global behavior
+
+- The CLI **does not read `.env` files**. Persistent settings live in **`~/.0gzk/config.json`** and are managed with **`0gzk config`** (see [`0gzk config`](#0gzk-config) below). Shell env vars are still honored as a one-off override (handy for CI).
+- Every command resolves configuration through **`@0gzk/sdk/node`**'s **`loadConfig`** (see **[SDK -> Node](/sdk/node)** for the full table). CLI flags **`--network`**, **`--rpc-url`**, **`--indexer-url`**, and **`--key`** override the matching environment variable for that invocation.
+- After a command resolves, the CLI calls **`process.exit(process.exitCode ?? 0)`** to break out of stuck snarkjs worker threads (relevant for **`prove`** especially).
+- Uncaught exceptions print **`error: <message>`** in red and **`process.exit(1)`**.
+
+## Resolution priority
+
+Highest wins:
+
+1. **CLI flag** (`--key`, `--network`, `--rpc-url`, `--indexer-url`, `--registry`)
+2. **Shell environment variable** (`OG_PRIVATE_KEY`, `OG_NETWORK`, `OG_RPC_URL`, `OG_INDEXER_URL`, `OGZK_REGISTRY_ADDRESS`)
+3. **`~/.0gzk/config.json`** (managed by **`0gzk config`**)
+4. **Built-in network preset** (mainnet by default)
+
+The CLI reads **`~/.0gzk/config.json`** at startup and injects each present key into **`process.env`** **only if the matching env var is not already set**, then hands off to the SDK. That's how the priority order is enforced — the SDK itself just reads **`process.env`**.
+
+## Environment variables
+
+These are honored when set in the shell, but the recommended way to set them permanently is **`0gzk config set`**.
+
+| Variable | Read by | Purpose |
+| --- | --- | --- |
+| **`OG_NETWORK`** | every command | **`testnet`** or **`mainnet`**; anything else falls back to **`mainnet`**. |
+| **`OG_RPC_URL`** | every command | Override EVM RPC. |
+| **`OG_INDEXER_URL`** | **`publish`**, **`fetch`**, **`prove`**, **`registry resolve`** | Override 0G Storage indexer. |
+| **`OG_PRIVATE_KEY`** | **`publish`**, **`registry register`** | 0x-prefixed signing key. |
+| **`OGZK_REGISTRY_ADDRESS`** | every **`registry`** subcommand, **`prove --name`**, **`publish --register`** | Override the registry address before falling back to the baked-in map. |
+| **`OGZK_CACHE_DIR`** | **`prove --root-hash`**, **`prove --name`** | Root directory for cached bundles; default **`~/.0gzk/bundles`**. |
+| **`OGZK_CONFIG_DIR`** | every command | Override the config dir; default **`~/.0gzk`**. The config file is **`<dir>/config.json`**. |
+
+## Wait budgets
+
+**`--wait`** on **`publish`** accepts the formats below (parsed by the CLI's internal **`parseDuration`**):
+
+| Input | Meaning |
+| --- | --- |
+| **`"30s"`**, **`"5m"`**, **`"1h"`**, **`"2d"`** | exactly that long |
+| **`"45"`** | bare number is seconds |
+| **`"0"`**, **`"none"`** | timeout disabled (waits indefinitely) |
+| **`"forever"`**, **`"inf"`**, **`"infinite"`** | timeout disabled |
+| anything else | error before the upload starts |
+
+The default is **`5m`**. **`--no-wait`** is **not** equivalent to **`0`**; the CLI still gives the upload a **30 s** submission budget so it has time to learn the **`rootHash`**.
+
+---
+
+## `0gzk config`
+
+Read and write persistent CLI settings. The store is a flat JSON file at **`~/.0gzk/config.json`** (or **`$OGZK_CONFIG_DIR/config.json`**), written with mode **`0600`**.
+
+### Allowed keys
+
+| Key | Validation | Injected as |
+| --- | --- | --- |
+| **`privateKey`** | **`/^0x[0-9a-fA-F]{64}$/`** | **`OG_PRIVATE_KEY`** |
+| **`network`** | **`"testnet"`** or **`"mainnet"`** | **`OG_NETWORK`** |
+| **`rpcUrl`** | http(s) URL | **`OG_RPC_URL`** |
+| **`indexerUrl`** | http(s) URL | **`OG_INDEXER_URL`** |
+| **`registry`** | **`/^0x[0-9a-fA-F]{40}$/`** | **`OGZK_REGISTRY_ADDRESS`** |
+
+Validation runs before the file is written; an invalid value never reaches disk.
+
+### Subcommands
+
+```bash
+0gzk config set <key> <value>      # write a value (validated, atomic)
+0gzk config get [key]              # print one value or all values
+0gzk config get [key] --show       # reveal the private key (default is masked)
+0gzk config list                   # alias for `config get` with no key
+0gzk config unset <key>            # remove a key
+0gzk config path                   # print absolute path to config.json
+```
+
+### Shortcut: `0gzk key <hex>`
+
+Because the private key is the only setting most users ever touch, there's a top-level shortcut:
+
+```bash
+0gzk key 0x...                     # equivalent to: 0gzk config set privateKey 0x...
+```
+
+Same validation, same masked output, same on-disk location.
+
+### Typical first-time setup
+
+```bash
+0gzk key 0x...                     # store the signing key once
+0gzk config set network mainnet    # optional: pick a network (mainnet is default)
+0gzk config get                    # confirm
+# config: /home/you/.0gzk/config.json
+#
+#   privateKey  0x1234…abcd  config
+#   network     mainnet      config
+#   rpcUrl      (unset)      (default)
+#   indexerUrl  (unset)      (default)
+#   registry    (unset)      (default)
+#
+# Resolution: CLI flag > shell env > ~/.0gzk/config.json > built-in network preset.
+```
+
+### Source labels in `config get`
+
+Each row of **`config get`** shows where the **effective** value comes from for the next command:
+
+| Label | Meaning |
+| --- | --- |
+| **`(default)`** | Nothing set; the SDK will use its built-in network preset. |
+| **`config`** | Value comes from **`~/.0gzk/config.json`**. |
+| **`env:OG_*`** | Shell env var was set **before** the CLI ran; it overrides the config file. |
+
+CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** because they only apply to a single invocation.
+
+### Security notes
+
+- **`privateKey`** is stored in plain text. Anyone with read access to your home directory can read it.
+- The file is **`chmod 600`** on POSIX. On Windows the chmod is a soft no-op; rely on filesystem ACLs.
+- **`config set privateKey ...`** ends up in shell history. Prefer reading from a file or pipe in that case (e.g. **`0gzk config set privateKey "$(cat /path/to/key.txt)"`**).
+- The masked display shows the first 6 and last 4 hex chars (e.g. **`0xCe9f…64d`**) so you can confirm the right key without leaking it on a screen recording.
+
+---
+
+## `0gzk publish`
+
+**Synopsis:** **`0gzk publish <bundleDir> [options]`**
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<bundleDir>`** | required | Path to a directory containing **`metadata.json`**, **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`** (and any extras like **`verifier.sol`**). |
+| **`--network <testnet \| mainnet>`** | env / **`mainnet`** | Network preset. |
+| **`--rpc-url <url>`** | preset | Override EVM RPC. |
+| **`--indexer-url <url>`** | preset | Override 0G Storage indexer. |
+| **`--key <hex>`** | **`OG_PRIVATE_KEY`** | Signing key. |
+| **`--no-receipt`** | off (receipt written) | Skip writing **`.published.json`**. |
+| **`--register`** | off | Also call **`CircuitRegistry.publishVersion`** after upload. |
+| **`--registry <address>`** | **`OGZK_REGISTRY_ADDRESS`** or baked-in | Override registry address. |
+| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. |
+| **`--verifier-address <address>`** | **`0x0...0`** | On-chain verifier (fill later with **`setVerifier`** if unknown). |
+| **`--wait <duration>`** | **`5m`** | See **Wait budgets** above. |
+| **`--no-wait`** | off | Return as soon as **`rootHash`** is known; **`--register`** still runs. |
+
+### Behavior
+
+1. **`loadConfig`** with overrides; **`OG_PRIVATE_KEY`** required (else throws **"Missing OG_PRIVATE_KEY"**).
+2. Calls **`uploadBundle`** from **`@0gzk/sdk/node`**:
+   - Packs the directory into a gzip tarball.
+   - Computes **`rootHash`** locally from the Merkle tree.
+   - Submits via the 0G indexer.
+   - Streams progress through the **`UploadStage`** path (**`packing -> submitting -> streaming -> finalizing -> done`**) into a spinner.
+3. On **`UploadTimeoutError`**: keep the **`rootHash`** if it was learned, mark the run as **not finalized**, set **`process.exitCode = 2`**.
+4. Prints **`rootHash`**, plus **`txHash`** / **`txSeq`** / explorer URL when finalized.
+5. With **`--register`**: reads **`metadata.json`** + **`verification_key.json`** from the bundle, computes **`vkeyHash`**, calls **`createCircuit(name)`** (if new) then **`publishVersion`**, awaits the receipt.
+6. Unless **`--no-receipt`**, writes **`<bundleDir>/.published.json`**.
+
+### `.published.json` shape
+
+```json
+{
+  "rootHash": "0x...",
+  "txHash": "0x..." | null,
+  "txSeq": 123 | null,
+  "network": "testnet" | "mainnet",
+  "publishedAt": "2026-05-14T17:00:00.000Z",
+  "finalized": true,
+  "registry": {
+    "address": "0x...",
+    "name": "private_multiply",
+    "version": "0.1.0",
+    "vkeyHash": "0x...",
+    "txHash": "0x..."
+  }
+}
+```
+
+**`registry`** is **`null`** when **`--register`** was not used.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| **`0`** | Upload finalized; **`--register`** (if requested) succeeded. |
+| **`1`** | Unhandled error (missing key, missing file, RPC failure, on-chain revert). |
+| **`2`** | Upload timed out, even if **`--register`** later succeeded with the known **`rootHash`**. |
+
+### Gotchas
+
+- **`OG_PRIVATE_KEY`** is **always** required; the upload itself is a signed transaction.
+- A timeout that finalizes asynchronously **does not** rewrite **`.published.json`** later; rerun **`0gzk publish`** or **`0gzk registry register`** to capture the on-chain receipt.
+
+---
+
+## `0gzk fetch`
+
+**Synopsis:** **`0gzk fetch <rootHash> [outputDir] [options]`**
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<rootHash>`** | required | 0x-prefixed hash from **`publish`** or the registry. |
+| **`[outputDir]`** | OS temp dir | Where to extract. |
+| **`--network`** | env / **`mainnet`** | Network preset. |
+| **`--indexer-url`** | preset / env | Override indexer. |
+
+### Behavior
+
+1. **`loadConfig`** with **`network`** and **`indexerUrl`** overrides.
+2. **`fetchBundle(rootHash, config, outputDir)`** from **`@0gzk/sdk/node`** downloads **`bundle.tar.gz`** and extracts it into the chosen directory (or a fresh temp dir if **`outputDir`** is omitted).
+3. Prints circuit **`name`**, **`version`**, **`protocol`**, **`curve`** read from **`metadata.json`**, then either the resolved output path or a note that it landed in a temp dir.
+
+### Exit codes
+
+- **`0`** on success.
+- **`1`** on download / extract / parse errors.
+
+### Gotchas
+
+- There is **no** **`--rpc-url`** on **`fetch`** (storage is the only network it touches).
+- Default extraction is to **`os.tmpdir()`**; if you want a stable cache use the second positional argument or pre-create the directory.
+
+---
+
+## `0gzk prove`
+
+**Synopsis:** **`0gzk prove <inputFile> [options]`**
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<inputFile>`** | required | JSON file with circuit inputs (must parse to a plain object). |
+| **`--bundle <dir>`** | one-of | Local **`circuit_bundle/`**. |
+| **`--root-hash <hex>`** | one-of | Fetch from 0G Storage by hash; cached under **`OGZK_CACHE_DIR/<rootHash>/`**. |
+| **`--name <spec>`** | one-of | Resolve **`name`** or **`name@version`** via **`CircuitRegistry`** then fetch. |
+| **`--registry <address>`** | **`OGZK_REGISTRY_ADDRESS`** or baked-in | Used with **`--name`**. |
+| **`--rpc-url <url>`** | env / preset | Used with **`--name`**. |
+| **`--out <dir>`** | **`proof-<YYYYMMDD-HHMMSS>`** in cwd | Where to write outputs. |
+| **`--no-verify`** | verify on | Skip **`verifyLocal`**. |
+| **`--network`** | env / **`mainnet`** | Network preset. |
+| **`--indexer-url`** | preset / env | Override indexer. |
+
+Exactly **one** of **`--bundle`**, **`--root-hash`**, **`--name`** must be provided.
+
+### Behavior
+
+1. Read and parse **`<inputFile>`**; reject arrays and **`null`** with a clear error.
+2. Resolve the bundle:
+   - **`--bundle`**: **`readBundleFromDir`** (requires **`metadata.json`** in the directory).
+   - **`--root-hash`**: validate **`/^0x[0-9a-fA-F]+$/`**, then look at **`OGZK_CACHE_DIR/<rootHashLower>/`**. On cache hit, **`readBundleFromDir`**; on miss, **`fetchBundle`** into that directory. If the fetch fails, the cache directory is removed.
+   - **`--name`**: **`parseNameSpec`** -> **`getVersion`** / **`getLatest`** through **`@0gzk/sdk/onchain`** -> **`fetchBundle`** under the cache root.
+3. Prints the circuit name, version, source label (**`dir`**, **`registry:<name>@<version>`**, **`cache:<hash>`**, **`0g:<hash>`**), and runs **`generateProof`** from **`@0gzk/sdk`** (which calls **`validateInputs`** for you).
+4. Unless **`--no-verify`**, runs **`verifyLocal`**. A **`false`** result sets **`process.exitCode = 1`** and throws a clear error.
+5. Writes **`proof.json`**, **`public.json`**, **`result.json`** into **`--out`** (created if needed).
+6. Prints **`publicSignals`** as JSON on stdout.
+
+### Output files
+
+| File | Content |
+| --- | --- |
+| **`proof.json`** | Raw **`Groth16Proof`** from snarkjs. |
+| **`public.json`** | **`string[]`** of public signals. |
+| **`result.json`** | Summary (**`circuit`**, **`rootHash`** (only when **`--root-hash`** was used; **`null`** otherwise), **`bundleSource`**, **`inputs`**, **`publicSignals`**, **`proof`**, **`verified`** or **`null`** with **`--no-verify`**, **`durationMs`**, **`generatedAt`**). |
+
+### Exit codes
+
+- **`0`** when proving succeeded **and** **`verifyLocal`** returned **`true`** (or **`--no-verify`** was set).
+- **`1`** on input parse errors, validation failures, snarkjs errors, or **`verifyLocal === false`**.
+
+### Gotchas
+
+- **`result.json.rootHash`** is **`null`** for **`--bundle`** and **`--name`** runs (only **`--root-hash`** stamps it).
+- The cache key is the **lowercase** rootHash; mixed-case input is normalized.
+- **`--name`** without a version means **"latest"**, as decided by **`getLatest`**.
+
+---
+
+## `0gzk registry register`
+
+**Synopsis:** **`0gzk registry register <rootHash> --bundle <dir> [options]`**
+
+Use when a previous **`0gzk publish --register`** timed out or you uploaded out-of-band and now want the on-chain record.
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<rootHash>`** | required | Must match **`/^0x[0-9a-fA-F]{64}$/`** (stricter than **`prove --root-hash`**). |
+| **`--bundle <dir>`** | required | Local bundle to compute **`(name, version, vkeyHash)`** from. |
+| **`--metadata-uri <uri>`** | **`""`** | Optional URI recorded on-chain. |
+| **`--verifier-address <address>`** | **`0x0...0`** | Verifier contract. |
+| **`--network`**, **`--rpc-url`**, **`--key`**, **`--registry`** | env / presets | Standard overrides. |
+
+### Behavior
+
+1. Validate **`rootHash`** strictly.
+2. **`readBundleFromDir`** + **`hashVkey`** to compute **`vkeyHash`**.
+3. **`connectRegistry`** (signer required; throws if no key).
+4. **`createCircuit(name)`** if the name does not exist; otherwise enforce **`ownerOf(name) === signer`**.
+5. **`publishVersion(name, version, rootHash, vkeyHash, verifier, metadataURI)`** -> **`tx.wait()`**.
+6. Prints **`registryTx`**.
+
+### Exit codes
+
+- **`0`** on success; **`1`** on any failure.
+
+### Gotchas
+
+- The **`(name, version, vkeyHash)`** the CLI computes must match what you actually uploaded; mismatched bundles register the wrong vkey.
+
+---
+
+## `0gzk registry list`
+
+**Synopsis:** **`0gzk registry list [options]`**
+
+### Arguments and flags
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| **`--offset <n>`** | **`0`** | Pagination offset. |
+| **`--limit <n>`** | **`50`** | Page size. |
+| **`--network`**, **`--rpc-url`**, **`--registry`** | env / presets | Standard overrides. |
+
+### Behavior
+
+1. **`connectRegistry`** (read-only, no key needed).
+2. **`listCircuits`** with **`offset`** and **`limit`**.
+3. Prints **`name`**, **`latestVersion`** (or **`"(no versions)"`**), and **`owner`**.
+
+### Gotchas
+
+- **`--offset`** / **`--limit`** are coerced with **`Number()`**; non-numeric strings become **`NaN`** and break the ABI call.
+
+---
+
+## `0gzk registry get`
+
+**Synopsis:** **`0gzk registry get <spec> [options]`**
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<spec>`** | required | **`name`** (latest) or **`name@version`**. |
+| **`--network`**, **`--rpc-url`**, **`--registry`** | env / presets | Standard overrides. |
+
+### Behavior
+
+1. **`parseNameSpec`**.
+2. With **`@version`** -> **`getVersion`** -> print the record.
+3. Name only -> **`listVersions`** to show every registered version, marks the latest with **`->`**, then **`getLatest`** for the full record.
+
+Each record prints **`rootHash`**, **`vkeyHash`**, **`verifier`**, **`publisher`**, **`publishedAt`** (ISO), and **`metadataURI`** when set.
+
+---
+
+## `0gzk registry resolve`
+
+**Synopsis:** **`0gzk registry resolve <spec> [outputDir] [options]`**
+
+### Arguments and flags
+
+| Argument / option | Default | Purpose |
+| --- | --- | --- |
+| **`<spec>`** | required | **`name`** or **`name@version`**. |
+| **`[outputDir]`** | OS temp dir | Where to extract the bundle. |
+| **`--network`**, **`--rpc-url`**, **`--registry`** | env / presets | Standard overrides. |
+
+### Behavior
+
+1. **`connectRegistry`** + **`parseNameSpec`** + **`getVersion`** / **`getLatest`**.
+2. With **`[outputDir]`**: extracts into **`<outputDir>/<rootHashLower>/`**; reuses an existing **`metadata.json`** there as a cache hit.
+3. Without **`[outputDir]`**: extracts into an OS temp dir created by **`fetchBundle`** (the help text mentions **`~/.0gzk/bundles/<rootHash>/`**, but that is what **`prove --name`** does, not **`registry resolve`**).
+4. Prints **`name@version`**, **`rootHash`**, the file map, the chosen output directory, and the verifier address if not the zero address.
+
+### Gotchas
+
+- The default extraction directory **differs** between **`prove --name`** (uses the cache under **`~/.0gzk/bundles`**) and **`registry resolve`** (uses OS temp). Pass **`[outputDir]`** if you care.
+
+---
+
+## Reading order
+
+If you have never used the CLI, follow the [Getting started](/getting-started) page first, then come back here. For end-to-end stories, the [examples](/examples) include **`publish`** (Example 05), **`prove`** (Example 01), and **`registry`** browsing (Example 04).

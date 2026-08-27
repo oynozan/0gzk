@@ -1,0 +1,53 @@
+{
+  "name": "private_transfer",
+  "version": "0.1.0",
+  "description": "Tornado-style shielded spend: prove a Poseidon commitment is in a depth-16 Merkle tree of UTXOs, emit a single-use nullifier, bound to a public recipient address",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "secret": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Spending key half: leaf = Poseidon(secret, nullifierSeed)"
+    },
+    "nullifierSeed": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Single-use seed; nullifier = Poseidon(nullifierSeed)"
+    },
+    "pathElements": {
+      "type": "field[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Sibling hashes from leaf to root, bottom-up"
+    },
+    "pathIndices": {
+      "type": "uint[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up"
+    },
+    "root": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Public Merkle root of all live UTXO commitments"
+    },
+    "recipient": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Recipient address packed into a field element. Bound into the proof to prevent withdraw-front-running"
+    }
+  },
+  "outputs": {
+    "nullifier": {
+      "type": "field",
+      "description": "Poseidon(nullifierSeed). Contract must reject duplicates"
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

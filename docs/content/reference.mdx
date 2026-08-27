@@ -1,0 +1,249 @@
+---
+title: Reference
+description: "Shared types and error classes used across @0gzk/sdk and the CLI."
+---
+
+# Reference
+
+The SDK exposes a handful of types and error classes that show up in more than one entry point. This page is the single source of truth. The per-subpath SDK pages link here instead of repeating the shapes.
+
+## Shared types
+
+### `BundleFiles`
+
+```typescript
+interface BundleFiles {
+  wasm: Uint8Array;
+  zkey: Uint8Array;
+  vkey: unknown;
+  metadata: CircuitMetadata;
+  verifier?: string;
+}
+```
+
+The in-memory representation of a circuit bundle. **`wasm`** and **`zkey`** are raw bytes (handed straight to **snarkjs**), **`vkey`** is the parsed **`verification_key.json`** (kept as **`unknown`** because snarkjs accepts whatever shape it produced), and **`verifier`** is the Solidity source string when **`metadata.files.verifier`** is set and the file exists.
+
+Where it comes from: **`readBundleFromDir`**, **`fetchBundle`**, the callback in **`resolveBundle`**, and the value of **`BuildCircuitBundleResult.metadata`** (after reading).
+
+Used by: **`generateProof`**, **`verifyLocal`**, **`resolveBundle`**.
+
+### `CircuitMetadata`
+
+```typescript
+interface CircuitMetadata {
+  name: string;
+  version: string;
+  description?: string;
+  protocol: "groth16" | "plonk" | "fflonk";
+  curve: "bn128" | "bls12-381";
+  inputs: Record<string, InputSpec>;
+  outputs: Record<string, OutputSpec>;
+  files: {
+    wasm: string;
+    zkey: string;
+    vkey: string;
+    verifier?: string;
+  };
+}
+```
+
+The canonical bundle descriptor (typically **`metadata.json`** on disk). **`inputs`** drives **`validateInputs`**, so getting it right is what gives you good error messages before snarkjs runs. **`files`** controls what **`readBundleFromDir`** and **`assembleBundle`** look for inside the bundle directory.
+
+### `InputSpec`
+
+```typescript
+type InputVisibility = "public" | "private";
+
+interface InputSpec {
+  type: string;
+  visibility: InputVisibility;
+  description?: string;
+  length?: number;
+}
+```
+
+One entry in **`CircuitMetadata.inputs`**. Recognised **`type`** values:
+
+- **`"uint"`**: non-negative integer scalar.
+- **`"bool"`**: boolean scalar (**`true`** / **`false`** / **`0`** / **`1`**).
+- **`"field"`**: bn128 scalar field element (decimal/hex string, number, or bigint).
+- **`"<T>[]"`**: array of any of the above (e.g. **`"uint[]"`**, **`"field[]"`**).
+
+Unknown scalar types fall through unchanged (forward-compatible). **`length`** is required for fixed-size circom arrays (for example a Merkle **`pathElements[8]`**); when set, **`validateInputs`** enforces the array length exactly.
+
+### `OutputSpec`
+
+```typescript
+interface OutputSpec {
+  type: string;
+  description?: string;
+}
+```
+
+One entry in **`CircuitMetadata.outputs`**. The SDK does not validate outputs; this exists for documentation, UI rendering (see the browser example), and registry indexers.
+
+### `ProofResult`
+
+```typescript
+interface ProofResult {
+  proof: Groth16Proof;     // from snarkjs
+  publicSignals: string[];
+}
+```
+
+The return shape of **`generateProof`**, and the argument shape **`verifyLocal`** expects. **`Groth16Proof`** is the snarkjs type (extended by the ambient **`packages/sdk/src/snarkjs.d.ts`** declarations that ship with the SDK).
+
+### `VersionRecord`
+
+```typescript
+interface VersionRecord {
+  rootHash: string;     // 0x-prefixed 32-byte hash
+  vkeyHash: string;     // 0x-prefixed keccak256 of canonical vkey
+  verifier: string;     // address(0) when unset
+  publisher: string;    // EVM address that called publishVersion
+  publishedAt: number;  // Unix timestamp in seconds
+  metadataURI: string;
+}
+```
+
+Decoded form of **`CircuitRegistry.Version`**. Returned by **`getVersion`** and inside the second element of **`getLatest`**'s return. **`publishedAt`** is converted to a **`number`** so it slots straight into **`new Date(record.publishedAt * 1000)`**.
+
+### `CircuitSummary`
+
+```typescript
+interface CircuitSummary {
+  name: string;
+  owner: string;
+  versionCount: number;
+  latestVersion: string;
+}
+```
+
+One row returned from **`listCircuits`**. Use it to populate registry browsers and to decide whether to call **`listVersions`** for a given circuit.
+
+### `ResolvedRecord`
+
+```typescript
+interface ResolvedRecord extends VersionRecord {
+  name: string;
+  version: string;
+}
+```
+
+What **`resolveBundle`** returns as **`record`**. It adds the resolved **`name`** and **`version`** (the version is always concrete, even when the caller only supplied a name; it comes from **`getLatest`** in that case).
+
+### `UploadStage`, `UploadProgress`, `UploadResult`
+
+```typescript
+type UploadStage =
+  | "packing"
+  | "submitting"
+  | "streaming"
+  | "finalizing"
+  | "done";
+
+interface UploadProgress {
+  stage: UploadStage;
+  message: string;
+  rootHash?: string;
+  uploadedSegments?: number;
+  totalSegments?: number;
+  finalized?: boolean;
+}
+
+interface UploadResult {
+  rootHash: string;
+  txHash: string;
+  txSeq: number;
+}
+```
+
+**`UploadStage`** walks the **`packing` -> `submitting` -> `streaming` -> `finalizing` -> `done`** path. **`UploadProgress`** is what arrives in the **`onProgress`** callback you pass to **`uploadBundle`**; **`rootHash`** appears as soon as the Merkle tree is computed (which is before the upload finishes), and **`uploadedSegments`** / **`totalSegments`** appear during **`streaming`**.
+
+**`UploadResult`** is the normalized return value of a successful **`uploadBundle`** call. It is what gets serialized into **`.published.json`** by the CLI.
+
+### `BundleFileMap`
+
+```typescript
+interface BundleFileMap {
+  wasm: string;
+  zkey: string;
+  vkey: string;
+  verifier?: string;
+  metadata: string;
+}
+```
+
+Returned by **`assembleBundle`** (and surfaced inside **`AssembleBundleResult`**). Each value is the **final on-disk path** inside the assembled bundle directory.
+
+### `BuildStage`, `BuildProgress`
+
+```typescript
+type BuildStage =
+  | "fetching-ptau"
+  | "setup"
+  | "exporting-vkey"
+  | "exporting-verifier"
+  | "assembling"
+  | "done";
+
+interface BuildProgress {
+  stage: BuildStage;
+  message: string;
+}
+```
+
+Emitted by **`buildCircuitBundle`** through its **`onProgress`** callback. Errors thrown inside **`onProgress`** are swallowed by the SDK (same defensive pattern as **`UploadOptions.onProgress`**) so a logger crash never tears down a build.
+
+## Errors
+
+### `InputValidationError`
+
+```typescript
+class InputValidationError extends Error {
+  readonly issues: string[];
+  constructor(issues: string[]);
+}
+```
+
+Thrown by **`validateInputs`** (and by extension **`generateProof`**, which calls it). The **`message`** field collapses every issue into a bulleted block; **`issues`** keeps each item separately so UIs can render them as a list.
+
+```typescript
+try {
+  await generateProof(bundle, { birthYear: -1 });
+} catch (err) {
+  if (err instanceof InputValidationError) {
+    for (const issue of err.issues) console.error(issue);
+  }
+}
+```
+
+### `UploadTimeoutError`
+
+```typescript
+class UploadTimeoutError extends Error {
+  readonly name: "UploadTimeoutError";
+  readonly timeoutMs: number;
+  readonly rootHash?: string;
+  readonly lastProgress?: UploadProgress;
+}
+```
+
+Thrown by **`uploadBundle`** when the wall-clock budget set by **`UploadOptions.timeoutMs`** expires. Two important caveats:
+
+1. The underlying upload promise is **not cancelled**; finalization continues on the network. Your client just stops waiting.
+2. **`rootHash`** is often populated even on timeout (the Merkle tree is computed locally before submission). If you have it, the data is most likely already submitted on chain; you can recover by calling **`0gzk registry register <rootHash> --bundle ./circuit_bundle`** or **`CircuitRegistry.publishVersion`** directly.
+
+### `PtauIntegrityError`
+
+```typescript
+class PtauIntegrityError extends Error {
+  readonly name: "PtauIntegrityError";
+  readonly size: number;
+  readonly expected: string;
+  readonly actual: string;
+  readonly filePath: string;
+}
+```
+
+Thrown by **`fetchPowersOfTau`** when the BLAKE2b-512 digest of a downloaded or cached Powers of Tau file does not match the entry in **`PTAU_BLAKE2B`**. The mismatch usually means the cached file is corrupt; delete **`filePath`** and rerun.

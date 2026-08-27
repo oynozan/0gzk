@@ -1,0 +1,3 @@
+*.sh text eol=lf
+circuits/**/build.sh text eol=lf
+circuits/_lib/*.sh text eol=lf

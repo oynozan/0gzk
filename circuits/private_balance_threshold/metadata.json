@@ -1,0 +1,36 @@
+{
+  "name": "private_balance_threshold",
+  "version": "0.1.0",
+  "description": "Proves a private balance is at least a public threshold, anchored to a public Poseidon commitment of (balance, salt)",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "balance": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Account balance in any 64-bit denominated unit"
+    },
+    "salt": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Random salt mixed into the commitment to prevent rainbow attacks"
+    },
+    "commitment": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Poseidon([balance, salt]) — the public anchor"
+    },
+    "threshold": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Public threshold the prover claims their balance is at least equal to"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

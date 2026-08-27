@@ -1,0 +1,19 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+gas_reports = ["CircuitRegistry"]
+
+[rpc_endpoints]
+galileo = "${OG_RPC_URL}"
+mainnet = "${OG_RPC_URL}"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true

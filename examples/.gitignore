@@ -1,0 +1,19 @@
+node_modules/
+dist/
+out/
+build/
+cache/
+broadcast/
+.env
+.env.local
+*.log
+
+# Per-example proof output dirs (created by example 01)
+**/proof-*/
+
+# Per-example Foundry libs (installed by `forge install`)
+**/lib/forge-std/
+
+# Per-example circuit build artifacts (example 05)
+**/build/
+**/circuit_bundle/

@@ -1,0 +1,365 @@
+---
+title: "Example 02: Prove in browser"
+description: "Vite + vanilla TypeScript, gunzip + untar in-tab, schema-driven UI, snarkjs in WASM."
+---
+
+# Example 02: Prove in browser
+
+**Audience:** Frontend teams proving **client-side**, where the witness never leaves the user's device.
+
+**Upstream:** [`examples/02-prove-in-browser`](https://github.com/0gzk/core/tree/main/examples/02-prove-in-browser)
+
+This is a single-page Vite + vanilla TypeScript app that works for any 0gzk circuit. It resolves a name from **`CircuitRegistry`** through ethers, fetches the bundle from **0G Storage** via a dev proxy, decompresses and untars it in the tab, builds a form from **`metadata.json`**, proves with **`@0gzk/sdk`** + snarkjs WASM, and verifies locally.
+
+```bash
+cd examples/02-prove-in-browser
+pnpm install --frozen-lockfile --ignore-workspace
+pnpm dev
+```
+
+Open the printed Vite URL. The two steps in the UI are: pick a circuit (load schema), then fill the rendered form and prove.
+
+## Why a CORS proxy
+
+Browsers enforce CORS on cross-origin fetches. The 0G Storage testnet indexer at **`https://indexer-storage-testnet-turbo.0g.ai`** does not currently send **`Access-Control-Allow-Origin`** headers, so a page on **`http://localhost:5173`** cannot fetch from it directly. The Vite dev server forwards requests for us:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  server: {
+    proxy: {
+      "/0g-storage": {
+        target: "https://indexer-storage-testnet-turbo.0g.ai",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/0g-storage/, ""),
+        secure: true,
+      },
+    },
+  },
+  optimizeDeps: {
+    include: ["snarkjs", "ethers", "@0gzk/sdk", "fflate"],
+  },
+});
+```
+
+Two things to call out:
+
+- **`changeOrigin: true`** rewrites the **`Host`** header so the target sees the request as same-origin. The browser still does the **`fetch`**; the bytes flow straight through; the witness never reaches a server.
+- **`optimizeDeps.include`** asks Vite to pre-bundle these packages on the first dev run. **snarkjs** ships a mix of ESM and CommonJS, and without pre-bundling Vite throws at runtime.
+
+For production you need your own CORS-friendly proxy (a Cloudflare Worker, a Next.js route, anything that re-emits **`Access-Control-Allow-Origin`**). Once 0G ships CORS headers on the indexer itself, the proxy step disappears.
+
+## Why no `@0gzk/sdk/node` in the browser
+
+The Node subpath imports **`fs`**, **`tar`**, and **`@0gfoundation/0g-ts-sdk`** (which uses Node sockets). Even bundlers that polyfill those will load tens of kilobytes of dead code into your tab. The browser path uses only:
+
+- **`ethers`** for the JSON-RPC provider and **`Contract`**.
+- **`@0gzk/sdk/onchain`** for **`getRegistryContract`** and the typed read helpers.
+- **`@0gzk/sdk`** for **`generateProof`** and **`verifyLocal`** (isomorphic).
+- **`fflate`** for **`gunzipSync`** of the storage tarball.
+- A 50-line tar reader from this example (see below).
+
+## `src/tar.ts`: a 50-line POSIX TAR reader
+
+A 0gzk bundle is exactly five files (wasm, zkey, vkey, metadata, optional **`verifier.sol`**), packed by **`tar`** in portable mode. We do not need GNU long names or PAX extensions:
+
+```typescript
+export interface TarEntry {
+  name: string;
+  bytes: Uint8Array;
+}
+
+function readString(buf: Uint8Array, offset: number, length: number): string {
+  let end = offset;
+  while (end < offset + length && buf[end] !== 0) end++;
+  return new TextDecoder().decode(buf.subarray(offset, end));
+}
+
+function readOctal(buf: Uint8Array, offset: number, length: number): number {
+  const s = readString(buf, offset, length).trim();
+  return s.length ? parseInt(s, 8) : 0;
+}
+
+export function parseTar(data: Uint8Array): TarEntry[] {
+  const entries: TarEntry[] = [];
+  let offset = 0;
+
+  while (offset + 512 <= data.length) {
+    if (data[offset] === 0) break; // end-of-archive sentinel
+    const name = readString(data, offset, 100);
+    const size = readOctal(data, offset + 124, 12);
+    const typeflag = String.fromCharCode(data[offset + 156] || 0);
+    offset += 512;
+    if (typeflag === "0" || typeflag === "\0" || typeflag === "") {
+      entries.push({ name, bytes: data.subarray(offset, offset + size) });
+    }
+    offset += Math.ceil(size / 512) * 512;
+  }
+
+  return entries;
+}
+```
+
+Key facts about the POSIX header:
+
+- Files are written in 512-byte blocks. The header takes one block.
+- **Name** starts at byte 0 (100-byte NUL-terminated string).
+- **Size** is octal at byte 124 (12 bytes wide).
+- **Type flag** at byte 156: **`"0"`**, **`"\0"`** or **`""`** all mean "regular file".
+- After the file content, the next entry is padded to the next 512-byte boundary.
+
+The function bails on the first zero block. A spec-correct trailer is two zero blocks; one zero block is good enough for our use because well-formed bundles never have a NUL-named file before the trailer.
+
+## `src/main.ts` walkthrough
+
+The script is 488 lines because it does **everything**: lookup, fetch, decompress, untar, build a form from metadata, validate inputs, prove, verify, and render results. It is intentionally framework-free.
+
+### Imports and DOM refs
+
+```typescript
+import { JsonRpcProvider } from "ethers";
+import {
+  getRegistryContract,
+  getLatest,
+  getVersion,
+  parseNameSpec,
+  type ResolvedRecord,
+} from "@0gzk/sdk/onchain";
+import {
+  generateProof,
+  verifyLocal,
+  InputValidationError,
+  type BundleFiles,
+  type CircuitMetadata,
+  type InputSpec,
+} from "@0gzk/sdk";
+import { gunzipSync } from "fflate";
+import { parseTar } from "./tar";
+
+const RPC_URL = "https://evmrpc-testnet.0g.ai";
+const STORAGE_PREFIX = "/0g-storage"; // matches the Vite dev proxy
+```
+
+Two important choices:
+
+- **`InputValidationError`** is imported by value so we can use **`instanceof`** when **`generateProof`** rejects.
+- **`BundleFiles`**, **`CircuitMetadata`**, **`InputSpec`**, and **`ResolvedRecord`** are **type-only** imports; they vanish from the compiled JS.
+
+### `DEFAULTS` table
+
+```typescript
+const DEFAULTS: Record<string, Record<string, unknown>> = {
+  age_verification: { birthYear: "1990", currentYear: "2026", minAge: "18" },
+  poseidon_preimage: {
+    preimage: "1",
+    hash: "18586133768512220936620570745912940619677854269274689475585506675881198879027",
+  },
+  // ...merkle_membership, private_balance_threshold
+};
+```
+
+The Poseidon-derived hashes are precomputed because the browser bundle deliberately does not ship a Poseidon implementation. For any circuit not in this table the form renders empty and the user has to supply matching values.
+
+### `fetchBundleFromStorage`
+
+```typescript
+async function fetchBundleFromStorage(rootHash: string): Promise<BundleFiles> {
+  const res = await fetch(`${STORAGE_PREFIX}/file?root=${rootHash}`);
+  if (!res.ok) throw new Error(`0G Storage HTTP ${res.status}`);
+  const gz = new Uint8Array(await res.arrayBuffer());
+  const tar = gunzipSync(gz);
+  const entries = parseTar(tar);
+
+  const find = (name: string): Uint8Array => {
+    const e = entries.find((x) => x.name === name);
+    if (!e) {
+      throw new Error(
+        `Bundle is missing ${name} (found: ${entries.map((x) => x.name).join(", ")})`,
+      );
+    }
+    return e.bytes;
+  };
+
+  const metadata = JSON.parse(
+    new TextDecoder().decode(find("metadata.json")),
+  ) as CircuitMetadata;
+  const wasm = find(metadata.files.wasm);
+  const zkey = find(metadata.files.zkey);
+  const vkey = JSON.parse(new TextDecoder().decode(find(metadata.files.vkey)));
+
+  return { wasm, zkey, vkey, metadata };
+}
+```
+
+This is the browser equivalent of **`fetchBundle`** from **`@0gzk/sdk/node`**, hand-rolled around **`fetch`**. The interesting bit is that the file names inside the tar come from **`metadata.json`**, not from hardcoded strings; bundles can use whatever wasm/zkey filenames they want.
+
+### `resolveOnChain`
+
+```typescript
+async function resolveOnChain(
+  spec: { name: string; version?: string },
+): Promise<ResolvedRecord> {
+  const provider = new JsonRpcProvider(RPC_URL);
+  const registry = getRegistryContract(provider);
+  const lookup = spec.version
+    ? {
+        version: spec.version,
+        record: await getVersion(registry, spec.name, spec.version),
+      }
+    : await getLatest(registry, spec.name);
+  return { name: spec.name, version: lookup.version, ...lookup.record };
+}
+```
+
+This is exactly what **`resolveBundle`** does internally, hand-inlined so we can keep **`fetchBundleFromStorage`** separate and call it later with **`record.rootHash`**.
+
+### `widgetFor`: one form row from one `InputSpec`
+
+```typescript
+function widgetFor(name: string, spec: InputSpec, defaultValue: unknown): string {
+  const isArray = spec.type.endsWith("[]");
+  const baseType = isArray ? spec.type.slice(0, -2) : spec.type;
+  const id = `field--${name}`;
+
+  if (isArray) {
+    const value =
+      defaultValue === undefined
+        ? ""
+        : JSON.stringify(defaultValue, null, 2);
+    const lengthHint = spec.length !== undefined ? ` (length ${spec.length})` : "";
+    return (
+      `<textarea id="${id}" data-name="${name}" data-type="${spec.type}" ` +
+      `placeholder='JSON array of ${baseType}${lengthHint}, e.g. ["1", "2", "3"]'>` +
+      escapeHtml(value) +
+      `</textarea>`
+    );
+  }
+
+  if (baseType === "bool") {
+    // ...select with true/false
+  }
+
+  // uint, field, or any forward-compatible scalar type.
+  return `<input type="text" .../>`;
+}
+```
+
+Arrays get a JSON textarea (so big integers stay as strings), booleans get a **`<select>`**, everything else gets a text input with a type-specific placeholder. The widget keeps two **`data-*`** attributes (**`data-name`**, **`data-type`**) so **`collectInputs`** can read them back.
+
+### `collectInputs`
+
+```typescript
+function collectInputs(meta: CircuitMetadata): CollectedInputs {
+  const inputs: Record<string, unknown> = {};
+  const parseErrors: string[] = [];
+
+  for (const [name, spec] of Object.entries(meta.inputs)) {
+    const el = inputFields.querySelector(`[data-name="${name}"]`);
+    if (!el) { parseErrors.push(`${name}: no widget rendered`); continue; }
+    const raw = el.value.trim();
+
+    if (spec.type.endsWith("[]")) {
+      // JSON.parse, ensure Array, stringify every element to preserve precision.
+      const parsed = JSON.parse(raw);
+      inputs[name] = parsed.map((v) =>
+        typeof v === "string" || typeof v === "number" ? String(v) : v,
+      );
+      continue;
+    }
+
+    if (raw === "") { parseErrors.push(`${name}: required`); continue; }
+    inputs[name] = raw;
+  }
+
+  return { inputs, parseErrors };
+}
+```
+
+The form-level errors are intentionally cheap (empty, not-JSON, not-an-array). Anything stricter (out-of-range field elements, wrong array length, **`uint`** vs **`bool`**) is left to **`validateInputs`** inside **`generateProof`**, which throws **`InputValidationError`** with a per-field **`issues`** array we render below.
+
+Stringifying array elements before validation matters: large field elements lose precision when they go through a JavaScript **`number`**, so we coerce them to decimal strings as early as possible.
+
+### `namePublicSignals`: ordering matters
+
+```typescript
+function namePublicSignals(metadata: CircuitMetadata, values: string[]) {
+  const names = [
+    ...Object.keys(metadata.outputs ?? {}).map((n) => ({ name: n, kind: "output" })),
+    ...Object.entries(metadata.inputs)
+      .filter(([, v]) => v.visibility === "public")
+      .map(([n]) => ({ name: n, kind: "public-input" })),
+  ];
+  return values.map((value, i) => ({
+    name: names[i]?.name ?? `signal[${i}]`,
+    kind: names[i]?.kind ?? "output",
+    value,
+  }));
+}
+```
+
+snarkjs lays public signals out in declaration order: outputs first, then every input flagged **`visibility: "public"`**. Pair each value with its name so the result panel says **`isAdult = 1`** instead of an opaque **`["1", "2026", "18"]`**.
+
+### `renderResult`: cryptographic vs policy
+
+```typescript
+function renderResult(bundle, proof, verified) {
+  log(`proof is ${verified ? "VALID" : "INVALID"} (cryptographic check only)`);
+  // ...print each named public signal...
+  if (bundle.metadata.name === "age_verification" && verified) {
+    const isAdult = named.find((s) => s.name === "isAdult")?.value;
+    if (isAdult === "1") log("PASS - a real gate (e.g. AgeGate.sol) would accept");
+    else log("REJECT - proof is valid but policy fails (isAdult == 0)");
+  }
+}
+```
+
+This is the most important shape-of-mind take-away from the example. **`verifyLocal`** answers a cryptographic question: "is this proof internally consistent with this verification key?" That is necessary but not sufficient. The policy question ("does the statement this proof attests to mean my dApp should grant access?") is your contract's job. **[Example 03](/examples/03-verify-on-chain)** is the canonical pattern: verify, then enforce **`pubSignals[isAdult] == 1`** as a separate step.
+
+### Two-step lifecycle
+
+```typescript
+async function loadSchema() { /* resolve + fetch + render form */ }
+async function prove() {     /* collect + generate + verify + render */ }
+
+schemaForm.addEventListener("submit", (e) => { e.preventDefault(); void loadSchema(); });
+proveForm.addEventListener("submit", (e) => { e.preventDefault(); void prove(); });
+```
+
+The script never reaches into globals or frameworks. **`loadSchema`** caches the resolved **`record`** and **`bundle`** in module-level variables; **`prove`** uses them. Preset buttons just rewrite the **`spec`** input, never trigger a fetch directly (so a typo is recoverable without an accidental download).
+
+## Expected output
+
+For **`age_verification`** with the default form:
+
+```
+[1/2] Resolving age_verification on Galileo...
+      version=0.1.0 rootHash=0x56a3a18f4c... (~500 ms)
+[2/2] Downloading bundle from 0G Storage + untarring...
+      6912 B wasm + 1064064 B zkey (~3000 ms)
+
+[1/2] Generating Groth16 proof in this browser tab...
+      done (~1500 ms)
+[2/2] Verifying locally...
+      verified=true (~200 ms)
+
+=== proof validity ===
+proof is VALID (cryptographic check only)
+
+=== public signals (by metadata name) ===
+  isAdult        = 1     (output)
+  currentYear    = 2026  (public-input)
+  minAge         = 18    (public-input)
+
+=== dApp gate verdict (age_verification) ===
+PASS - a real gate (e.g. AgeGate.sol) would accept this proof
+```
+
+Flip **`birthYear`** to **`2022`** and the proof is still **`VALID`** but **`isAdult == 0`**: the gate would reject.
+
+## Exercises
+
+- Replace the dev proxy with a Cloudflare Worker that re-emits CORS headers, then deploy the page somewhere static.
+- Add a "verify on chain" button that submits the same proof to an **`AgeGate`** deployment using **`ethers`** with a connected wallet (see **[Example 03](/examples/03-verify-on-chain)** for the Solidity side).
+- Persist the last-used **`spec`** in **`localStorage`** so reloads land back on the same circuit.

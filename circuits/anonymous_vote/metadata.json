@@ -1,0 +1,57 @@
+{
+  "name": "anonymous_vote",
+  "version": "0.1.0",
+  "description": "Cast a private vote in {0..7} as a member of a depth-16 Poseidon Merkle tree of eligible voters; emit a per-(voter, ballot) nullifier so each voter votes at most once",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "voterSecret": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Voter's secret. leaf = Poseidon(voterSecret) lives in the voters tree"
+    },
+    "pathElements": {
+      "type": "field[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Sibling hashes from leaf to root, bottom-up"
+    },
+    "pathIndices": {
+      "type": "uint[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up"
+    },
+    "vote": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Chosen option, in [0, 8). Re-emitted as the public output revealedVote"
+    },
+    "votersRoot": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Public Merkle root of all eligible voters"
+    },
+    "ballotId": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Identifier of this ballot. Namespaces the nullifier so voters can re-vote in future ballots"
+    }
+  },
+  "outputs": {
+    "nullifier": {
+      "type": "field",
+      "description": "Poseidon(voterSecret, ballotId). Tally contract must reject duplicates"
+    },
+    "revealedVote": {
+      "type": "uint",
+      "description": "The vote in {0..7}, exposed publicly so the tally contract can count it"
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

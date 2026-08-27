@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>0gzk - prove in browser</title>
+    <style>
+      :root {
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        color-scheme: light dark;
+      }
+      body {
+        max-width: 760px;
+        margin: 4rem auto;
+        padding: 0 1.5rem;
+        line-height: 1.5;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      h2 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        opacity: 0.8;
+      }
+      p.lede {
+        opacity: 0.7;
+        margin-top: 0;
+        margin-bottom: 2rem;
+      }
+      form {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.75rem 1rem;
+        align-items: start;
+        margin-bottom: 1rem;
+      }
+      label {
+        opacity: 0.7;
+        padding-top: 0.4rem;
+      }
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid currentColor;
+        background: transparent;
+        color: inherit;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      textarea {
+        font-family: inherit;
+        min-height: 4.5rem;
+        resize: vertical;
+      }
+      button {
+        grid-column: 2;
+        cursor: pointer;
+        opacity: 0.9;
+      }
+      button:hover:not(:disabled) {
+        opacity: 1;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      #load-btn {
+        grid-column: 1 / -1;
+      }
+      .field-hint {
+        grid-column: 2;
+        font-size: 0.85em;
+        opacity: 0.55;
+        margin-top: -0.4rem;
+      }
+      .visibility-tag {
+        display: inline-block;
+        padding: 0 0.4em;
+        margin-right: 0.5em;
+        font-size: 0.75em;
+        border: 1px solid currentColor;
+        opacity: 0.7;
+      }
+      .visibility-tag.private {
+        color: #d29922;
+      }
+      .visibility-tag.public {
+        color: #2ea043;
+      }
+      .preset-row {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .preset-row button {
+        grid-column: auto;
+        flex: 0 0 auto;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.85em;
+      }
+      pre {
+        background: rgba(127, 127, 127, 0.1);
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .ok {
+        color: #2ea043;
+      }
+      .warn {
+        color: #d29922;
+      }
+      .err {
+        color: #f85149;
+      }
+      .dim {
+        opacity: 0.6;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .meta-line {
+        margin: 0.25rem 0;
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>0gzk - prove in browser</h1>
+    <p class="lede">
+      Resolve any 0gzk circuit by name, download its bundle from 0G Storage,
+      build the input form from the bundle's <code>metadata.json</code>, prove
+      + verify in this tab. No backend, no witness ever leaves the browser.
+    </p>
+
+    <h2>Step 1 - pick a circuit</h2>
+    <form id="schema-form">
+      <label for="spec">circuit</label>
+      <input id="spec" value="age_verification" placeholder="name or name@version" />
+
+      <div class="preset-row" aria-label="reference-circuit shortcuts">
+        <button type="button" data-preset="age_verification">age_verification</button>
+        <button type="button" data-preset="poseidon_preimage">poseidon_preimage</button>
+        <button type="button" data-preset="merkle_membership">merkle_membership</button>
+        <button type="button" data-preset="private_balance_threshold">
+          private_balance_threshold
+        </button>
+      </div>
+
+      <button type="submit" id="load-btn">LOAD SCHEMA</button>
+    </form>
+
+    <div id="circuit-meta"></div>
+
+    <h2 id="step-2-heading" hidden>Step 2 - fill in inputs and prove</h2>
+    <form id="prove-form" hidden>
+      <div id="input-fields" style="display: contents;"></div>
+      <button type="submit" id="prove-btn">PROVE</button>
+    </form>
+
+    <pre id="log">Pick a circuit, click LOAD SCHEMA, then PROVE.</pre>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

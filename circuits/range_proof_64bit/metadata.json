@@ -1,0 +1,31 @@
+{
+  "name": "range_proof_64bit",
+  "version": "0.1.0",
+  "description": "Canonical 64-bit range proof: prove a private value x in [0, 2^64) that opens a public Poseidon commitment. Designed to be reused as a building block",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "x": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Value being range-checked (must fit in 64 bits)"
+    },
+    "salt": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Random salt that hides x in the public commitment"
+    },
+    "commitment": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Poseidon(x, salt) anchored on-chain or in a registry"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

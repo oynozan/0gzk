@@ -1,0 +1,20 @@
+{
+  "name": "0gzk-example-prove-in-node",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Resolve a 0gzk circuit by name from the on-chain registry, fetch its bundle from 0G Storage, generate a Groth16 proof in Node, verify locally.",
+  "type": "module",
+  "scripts": {
+    "start": "node prove.mjs",
+    "smoke": "node prove.mjs age_verification 1990"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.4",
+    "@0gzk/sdk": "^0.2.0",
+    "ethers": "^6.13.0",
+    "snarkjs": "^0.7.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

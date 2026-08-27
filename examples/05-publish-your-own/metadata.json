@@ -1,0 +1,31 @@
+{
+  "name": "private_multiply",
+  "version": "0.1.0",
+  "description": "Proves knowledge of two factors x, y of a public product `out`, without revealing x or y.",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "x": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "First factor (kept secret)."
+    },
+    "y": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Second factor (kept secret)."
+    }
+  },
+  "outputs": {
+    "out": {
+      "type": "uint",
+      "description": "Public product: x * y."
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "age_verification",
+  "version": "0.1.0",
+  "description": "Proves user age >= minAge without revealing birthYear",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "birthYear": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "User's birth year (e.g., 1990)"
+    },
+    "currentYear": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Current calendar year"
+    },
+    "minAge": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Minimum required age"
+    }
+  },
+  "outputs": {
+    "isAdult": {
+      "type": "bool",
+      "description": "1 if age >= minAge, else 0"
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

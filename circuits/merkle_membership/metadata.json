@@ -1,0 +1,38 @@
+{
+  "name": "merkle_membership",
+  "version": "0.1.0",
+  "description": "Proves a private leaf is included in a public Poseidon-2 Merkle tree of depth 8 without revealing the leaf or its path",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "leaf": {
+      "type": "field",
+      "visibility": "private",
+      "description": "The secret leaf whose inclusion is being proven"
+    },
+    "pathElements": {
+      "type": "field[]",
+      "length": 8,
+      "visibility": "private",
+      "description": "Sibling hashes along the path from leaf to root, bottom-up"
+    },
+    "pathIndices": {
+      "type": "uint[]",
+      "length": 8,
+      "visibility": "private",
+      "description": "Per-level direction bits (0 = leaf is left child, 1 = leaf is right child), bottom-up"
+    },
+    "root": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Public Merkle root the leaf claims membership in"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

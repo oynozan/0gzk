@@ -1,0 +1,68 @@
+---
+title: Getting started
+description: Install the CLI and SDK, configure environment variables, and run your first commands.
+---
+
+# Getting started
+
+This page assumes you are comfortable with a terminal and **Node.js 20+**.
+
+## Install
+
+**JavaScript library** (prover + validation; works in Node and modern browsers):
+
+```bash
+npm install @0gzk/sdk snarkjs
+```
+
+**CLI** (global `0gzk` binary):
+
+```bash
+npm install -g @0gzk/cli
+```
+
+You can use **pnpm** or **yarn** the same way.
+
+## Environment variables
+
+Operations that **upload** bundles, **register** on-chain, or **resolve** via the registry need configuration. The CLI and `@0gzk/sdk/node` read the same environment variables.
+
+Create a `.env` file (never commit real keys):
+
+```bash
+# "mainnet" or "testnet" (Galileo). Defaults to mainnet.
+OG_NETWORK=testnet
+
+# Required for gas-spending actions (0x + 64 hex chars).
+OG_PRIVATE_KEY=0xYOUR_KEY_HERE
+
+# Optional overrides (defaults work for most users):
+# OG_RPC_URL=https://evmrpc-testnet.0g.ai
+# OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
+```
+
+- **Testnet:** use `OG_NETWORK=testnet`, fund the address from the [0G faucet](https://faucet.0g.ai).
+- **Mainnet:** use `OG_NETWORK=mainnet` and a funded mainnet key.
+
+Optional: point the CLI at a key without a file using `--key 0x…` on supported commands.
+
+## Sanity checks
+
+```bash
+0gzk --version
+```
+
+```bash
+node -e "import('@0gzk/sdk').then(m => console.log('ok', typeof m.generateProof))"
+```
+
+## Typical flows
+
+| Goal | Where to read |
+| --- | --- |
+| Publish a bundle and register it | [CLI → publish](/cli) |
+| Prove something locally | [CLI → prove](/cli), [SDK → core](/sdk/core) |
+| Fetch a bundle in Node | [SDK → node](/sdk/node) |
+| Resolve `name@version` | [SDK → onchain](/sdk/onchain), [Examples](/examples) |
+
+When you are ready, open [CLI](/cli) for concrete command examples.

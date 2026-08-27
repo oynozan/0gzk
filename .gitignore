@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+.next/
+out/
+
+# circuit artifacts
+*.ptau
+circuits/**/circuit_bundle/
+circuits/**/*.r1cs
+circuits/**/*.sym
+circuits/**/*_js/
+circuits/**/*.zkey
+
+# env / secrets
+.env
+.env.*
+!.env.example
+!.env.template
+
+# tooling caches
+.turbo/
+.cache/
+.eslintcache
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

@@ -1,0 +1,39 @@
+{
+  "name": "solvency_attestation",
+  "version": "0.1.0",
+  "description": "N=16 proof of reserves: prove sum of 16 Poseidon-committed balances meets a public threshold, without revealing individual balances",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "balances": {
+      "type": "uint[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Per-account balances (each constrained to 64 bits)"
+    },
+    "salts": {
+      "type": "field[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Random salt for each commitment"
+    },
+    "commitments": {
+      "type": "field[]",
+      "length": 16,
+      "visibility": "public",
+      "description": "Per-account Poseidon([balance, salt]) commitments published in advance"
+    },
+    "threshold": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Required minimum sum of balances (constrained to 64 bits)"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

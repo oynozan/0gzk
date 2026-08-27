@@ -1,0 +1,26 @@
+{
+  "name": "poseidon_preimage",
+  "version": "0.1.0",
+  "description": "Proves knowledge of a field element x such that Poseidon([x]) == hash",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "preimage": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Secret preimage; any element of the bn128 scalar field"
+    },
+    "hash": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Poseidon([preimage]) — the public commitment being opened"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

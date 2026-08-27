@@ -1,0 +1,25 @@
+﻿diff --git a/dist/layout.js b/dist/layout.js
+index 57a511f..1e25e1d 100644
+--- a/dist/layout.js
++++ b/dist/layout.js
+@@ -23,17 +23,18 @@ const Layout = (t0) => {
+     themeConfig = $[2];
+   }
+   let data;
+-  if ($[3] !== themeConfig) {
++  if ($[3] !== themeConfig || $[26] !== children) {
+     const {
+       data: t12,
+       error
+-    } = LayoutPropsSchema.safeParse(themeConfig);
++    } = LayoutPropsSchema.safeParse({ ...themeConfig, children });
+     data = t12;
+     if (error) {
+       throw z.prettifyError(error);
+     }
+     $[3] = themeConfig;
+     $[4] = data;
++    $[26] = children;
+   } else {
+     data = $[4];
+   }

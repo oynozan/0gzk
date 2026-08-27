@@ -1,0 +1,328 @@
+---
+title: "Example 03: Verify on-chain"
+description: "Foundry consumer contract that calls a Groth16 verifier and enforces a policy on the public signals."
+---
+
+# Example 03: Verify on-chain
+
+**Audience:** Solidity engineers wiring a 0gzk circuit's Groth16 verifier into their own contract.
+
+**Upstream:** [`examples/03-verify-on-chain`](https://github.com/0gzk/core/tree/main/examples/03-verify-on-chain)
+
+This example proves out the canonical **"verify then enforce policy"** pattern. A tiny consumer contract (**`AgeGate`**) calls a generated **`Groth16Verifier`** and then checks one of the public signals (**`isAdult`**) before granting access. Four Foundry tests cover the success path, verifier rejection, policy rejection, and event emission, all without a real proof. A separate script broadcasts a real proof to a deployed gate.
+
+## Run the hermetic tests
+
+```bash
+cd examples/03-verify-on-chain
+forge install foundry-rs/forge-std --no-commit
+pnpm install --frozen-lockfile --ignore-workspace
+pnpm smoke   # forge test -vv
+```
+
+You should see four green tests. No network required for this path.
+
+## Project layout
+
+```
+03-verify-on-chain/
+  foundry.toml
+  remappings.txt
+  package.json
+  src/
+    AgeGate.sol
+    interfaces/
+      IGroth16Verifier.sol
+  test/
+    AgeGate.t.sol
+    MockGroth16Verifier.sol
+  script/
+    SubmitProof.s.sol
+  scripts/
+    build-calldata.mjs
+```
+
+```toml
+# foundry.toml
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+
+[rpc_endpoints]
+galileo = "${OG_RPC_URL}"
+```
+
+## `IGroth16Verifier.sol`: fixed N public signals
+
+```solidity
+// src/interfaces/IGroth16Verifier.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+interface IGroth16VerifierN3 {
+    function verifyProof(
+        uint256[2] calldata pA,
+        uint256[2][2] calldata pB,
+        uint256[2] calldata pC,
+        uint256[3] calldata pubSignals
+    ) external view returns (bool);
+}
+```
+
+**The number of public signals is baked into the verifier at `snarkjs zkey export solidityverifier` time.** A circuit with 5 public signals produces a verifier whose **`verifyProof`** expects **`uint256[5]`**. This interface is specialized to **3** because that is what **`age_verification@0.1.0`** emits (one output plus two public inputs). For your own circuit copy this file, change **`uint256[3]`** to your **`N`**, and rename the interface.
+
+## `AgeGate.sol`: two-step gating
+
+```solidity
+// src/AgeGate.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import { IGroth16VerifierN3 } from "./interfaces/IGroth16Verifier.sol";
+
+contract AgeGate {
+    IGroth16VerifierN3 public immutable VERIFIER;
+
+    // snarkjs lays public signals out in metadata declaration order:
+    //   outputs first, then every input flagged `visibility: "public"`.
+    // For age_verification that is [isAdult, currentYear, minAge].
+    uint256 public constant IS_ADULT_INDEX = 0;
+    uint256 public constant CURRENT_YEAR_INDEX = 1;
+    uint256 public constant MIN_AGE_INDEX = 2;
+
+    mapping(address => bool) public allowed;
+
+    event Allowed(address indexed who, uint256 currentYear, uint256 minAge);
+
+    error ProofRejected();
+    error NotAnAdult();
+
+    constructor(address verifier) {
+        VERIFIER = IGroth16VerifierN3(verifier);
+    }
+
+    function claim(
+        uint256[2] calldata pA,
+        uint256[2][2] calldata pB,
+        uint256[2] calldata pC,
+        uint256[3] calldata pubSignals
+    ) external {
+        if (!VERIFIER.verifyProof(pA, pB, pC, pubSignals)) revert ProofRejected();
+        if (pubSignals[IS_ADULT_INDEX] != 1) revert NotAnAdult();
+
+        allowed[msg.sender] = true;
+        emit Allowed(msg.sender, pubSignals[CURRENT_YEAR_INDEX], pubSignals[MIN_AGE_INDEX]);
+    }
+}
+```
+
+Things to notice:
+
+- **`VERIFIER`** is **`immutable`** because the verifier itself never changes for a given circuit version. If the registry adds a verifier address after the fact (**`setVerifier`** on **`CircuitRegistry`**), deploy a new **`AgeGate`** pointing at it.
+- **Two reverts, two error names**: **`ProofRejected`** for crypto failures, **`NotAnAdult`** for policy failures. They feel similar but are conceptually different and you want different error selectors so the frontend can distinguish.
+- **Indices are positional**: the order in your circuit's **`metadata.json`** is the contract on file. If you rename signals you don't reorder them.
+- **`isAdult`** is a **`uint`** in the circuit (snarkjs always returns string-decimals on chain), so the **`!= 1`** check is fine.
+
+## `MockGroth16Verifier.sol` and `AgeGate.t.sol`
+
+```solidity
+// test/MockGroth16Verifier.sol
+contract MockGroth16Verifier is IGroth16VerifierN3 {
+    bool public answer = true;
+
+    function setAnswer(bool a) external { answer = a; }
+
+    function verifyProof(
+        uint256[2] calldata,
+        uint256[2][2] calldata,
+        uint256[2] calldata,
+        uint256[3] calldata
+    ) external view returns (bool) {
+        return answer;
+    }
+}
+```
+
+The mock returns whatever you set; the actual **`Groth16Verifier`** generated by snarkjs does a real pairing check. Either implementation satisfies **`IGroth16VerifierN3`**, which is exactly the point: **`AgeGate`** does not care which one is plugged in.
+
+```solidity
+// test/AgeGate.t.sol
+contract AgeGateTest is Test {
+    MockGroth16Verifier internal verifier;
+    AgeGate internal gate;
+    address internal alice = makeAddr("alice");
+
+    function setUp() public {
+        verifier = new MockGroth16Verifier();
+        gate = new AgeGate(address(verifier));
+    }
+
+    function _dummyAB() internal pure returns (
+        uint256[2] memory pA, uint256[2][2] memory pB, uint256[2] memory pC
+    ) {
+        pA = [uint256(1), uint256(2)];
+        pB[0] = [uint256(3), uint256(4)];
+        pB[1] = [uint256(5), uint256(6)];
+        pC = [uint256(7), uint256(8)];
+    }
+
+    function _adultSignals() internal pure returns (uint256[3] memory s) {
+        s[0] = 1;    // isAdult
+        s[1] = 2026; // currentYear
+        s[2] = 18;   // minAge
+    }
+
+    function test_claim_succeeds_for_valid_adult_proof() public {
+        (uint256[2] memory pA, uint256[2][2] memory pB, uint256[2] memory pC) = _dummyAB();
+        vm.prank(alice);
+        gate.claim(pA, pB, pC, _adultSignals());
+        assertTrue(gate.allowed(alice));
+    }
+
+    function test_claim_reverts_when_verifier_rejects() public {
+        verifier.setAnswer(false);
+        (uint256[2] memory pA, uint256[2][2] memory pB, uint256[2] memory pC) = _dummyAB();
+        vm.expectRevert(AgeGate.ProofRejected.selector);
+        gate.claim(pA, pB, pC, _adultSignals());
+    }
+
+    function test_claim_reverts_when_not_adult() public {
+        (uint256[2] memory pA, uint256[2][2] memory pB, uint256[2] memory pC) = _dummyAB();
+        uint256[3] memory signals;
+        signals[0] = 0; // isAdult == 0
+        signals[1] = 2026;
+        signals[2] = 18;
+        vm.expectRevert(AgeGate.NotAnAdult.selector);
+        gate.claim(pA, pB, pC, signals);
+    }
+
+    function test_emits_allowed_event() public {
+        (uint256[2] memory pA, uint256[2][2] memory pB, uint256[2] memory pC) = _dummyAB();
+        vm.expectEmit(true, false, false, true);
+        emit AgeGate.Allowed(alice, 2026, 18);
+        vm.prank(alice);
+        gate.claim(pA, pB, pC, _adultSignals());
+    }
+}
+```
+
+Pattern points:
+
+- **Hermetic**: no real proof, no real verifier, no network. The mock makes both reverts cheap to test independently.
+- **`vm.expectRevert(AgeGate.ProofRejected.selector)`** and **`AgeGate.NotAnAdult.selector`** are why the gate has two named errors rather than one.
+
+## `build-calldata.mjs`: from snarkjs JSON to Solidity tuples
+
+A real proof needs to be re-shaped into the four arrays **`verifyProof`** expects. snarkjs has a helper:
+
+```javascript
+// scripts/build-calldata.mjs
+#!/usr/bin/env node
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
+import { groth16 } from "snarkjs";
+
+const [, , proofPath, publicPath, outPath] = process.argv;
+if (!proofPath || !publicPath) {
+  console.error("Usage: node scripts/build-calldata.mjs <proof.json> <public.json> [out]");
+  process.exit(1);
+}
+
+const proof = JSON.parse(await fs.readFile(proofPath, "utf8"));
+const publicSignals = JSON.parse(await fs.readFile(publicPath, "utf8"));
+
+// snarkjs returns a comma-separated string of [pA[2], pB[2][2], pC[2], pubSignals[N]].
+const callDataStr = await groth16.exportSolidityCallData(proof, publicSignals);
+const [pA, pB, pC, pubSignalsArr] = JSON.parse(`[${callDataStr}]`);
+
+const out = outPath ?? path.join(path.dirname(publicPath), "calldata.json");
+await fs.writeFile(out, JSON.stringify({ pA, pB, pC, pubSignals: pubSignalsArr }, null, 2));
+console.log(`wrote ${out}`);
+```
+
+The reshaping trick is the **`JSON.parse("[${callDataStr}]")`** line. **`exportSolidityCallData`** returns the four tuples already joined by commas, but without surrounding brackets. Wrapping them in **`[...]`** turns the whole thing into a valid four-element JSON array; **`JSON.parse`** then gives us each element typed (an array of strings for **`pA`**, a 2x2 matrix for **`pB`**, etc.). No regex parsing required.
+
+The input files (**`proof.json`**, **`public.json`**) are exactly what **`0gzk prove`** writes into its **`--out`** directory.
+
+## `SubmitProof.s.sol`: broadcasting a real proof
+
+```solidity
+// script/SubmitProof.s.sol
+contract SubmitProof is Script {
+    using stdJson for string;
+
+    function run() external {
+        address gateAddr = vm.envAddress("GATE");
+        string memory calldataPath = vm.envString("CALLDATA");
+        string memory json = vm.readFile(calldataPath);
+
+        uint256[] memory pAArr = json.readUintArray(".pA");
+        uint256[] memory pB0Arr = json.readUintArray(".pB[0]");
+        uint256[] memory pB1Arr = json.readUintArray(".pB[1]");
+        uint256[] memory pCArr = json.readUintArray(".pC");
+        uint256[] memory sigArr = json.readUintArray(".pubSignals");
+        require(sigArr.length == 3, "this example expects N=3 public signals");
+
+        uint256[2] memory pA = [pAArr[0], pAArr[1]];
+        uint256[2][2] memory pB;
+        pB[0] = [pB0Arr[0], pB0Arr[1]];
+        pB[1] = [pB1Arr[0], pB1Arr[1]];
+        uint256[2] memory pC = [pCArr[0], pCArr[1]];
+        uint256[3] memory pubSignals = [sigArr[0], sigArr[1], sigArr[2]];
+
+        vm.startBroadcast();
+        AgeGate(gateAddr).claim(pA, pB, pC, pubSignals);
+        vm.stopBroadcast();
+    }
+}
+```
+
+The script reads the dynamic-length arrays out of the JSON (Foundry's **`stdJson`** does not parse fixed-size arrays directly) and copies them into the fixed-size shapes the gate expects.
+
+## End-to-end with a real proof
+
+`age_verification@0.1.0` does not yet have a verifier address on the registry, so you deploy the verifier yourself. The full sequence:
+
+```bash
+# 1. Generate a real proof with 0gzk prove. It writes proof.json, public.json,
+#    result.json into ./proof-<timestamp>/.
+0gzk prove --name age_verification@0.1.0 ./input.json
+ls proof-*/
+
+# 2. Pull the bundle's verifier.sol and deploy it.
+0gzk registry resolve age_verification@0.1.0 /tmp/age_verification
+forge create /tmp/age_verification/<rootHash>/verifier.sol:Groth16Verifier \
+  --rpc-url $OG_RPC_URL --private-key $OG_PRIVATE_KEY --legacy
+# -> records VERIFIER=0x...
+
+# 3. Deploy AgeGate pointing at that verifier.
+forge create src/AgeGate.sol:AgeGate \
+  --constructor-args $VERIFIER \
+  --rpc-url $OG_RPC_URL --private-key $OG_PRIVATE_KEY --legacy
+# -> records GATE=0x...
+
+# 4. Convert the proof to calldata.
+node scripts/build-calldata.mjs proof-*/proof.json proof-*/public.json
+
+# 5. Broadcast.
+GATE=$GATE CALLDATA=proof-*/calldata.json \
+  forge script script/SubmitProof.s.sol \
+  --rpc-url $OG_RPC_URL --private-key $OG_PRIVATE_KEY --broadcast --legacy
+```
+
+If everything lines up, **`AgeGate.allowed(msg.sender)`** flips to **`true`** and the **`Allowed`** event is emitted with the chosen **`currentYear`** and **`minAge`**.
+
+## Adapting for your own circuit
+
+1. Run **`0gzk publish`** for your circuit; copy its **`verifier.sol`** out of the bundle (or use the deployed verifier address once you've registered one).
+2. Copy **`IGroth16Verifier.sol`** and change **`uint256[3]`** to whatever **`N`** your circuit produces (count outputs + public inputs).
+3. Update **`AgeGate.sol`**'s public-signal indices to match your circuit's metadata order.
+4. Rerun the hermetic tests with **`pnpm smoke`** to validate your indices line up.
+
+The pattern stays identical: **`verifier.verifyProof(...)`** returns **`bool`**, then your contract enforces whatever policy the public signals encode.

@@ -1,0 +1,19 @@
+{
+  "name": "0gzk-example-verify-on-chain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Foundry project + snarkjs helper showing how to consume a 0gzk Groth16 proof from your own Solidity contract.",
+  "type": "module",
+  "scripts": {
+    "build-calldata": "node scripts/build-calldata.mjs",
+    "test": "forge test -vv",
+    "smoke": "forge test -vv"
+  },
+  "dependencies": {
+    "@0gzk/sdk": "^0.2.0",
+    "snarkjs": "^0.7.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

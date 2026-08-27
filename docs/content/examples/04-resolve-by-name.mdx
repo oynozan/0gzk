@@ -1,0 +1,186 @@
+---
+title: "Example 04: Resolve by name"
+description: "Read-only CircuitRegistry phone-book: print every field of a record plus explorer links."
+---
+
+# Example 04: Resolve by name
+
+**Audience:** Integrators who only need the metadata a dApp would read before fetching a bundle. Useful for explorers, dashboards, and CI smoke tests that confirm a circuit is registered.
+
+**Upstream:** [`examples/04-resolve-by-name`](https://github.com/0gzk/core/tree/main/examples/04-resolve-by-name)
+
+The script is 54 lines, calls **no proving code**, and never downloads the bundle. It is purely "what does the registry say about this name?".
+
+## Run it
+
+```bash
+cd examples/04-resolve-by-name
+pnpm install --frozen-lockfile --ignore-workspace
+pnpm smoke   # node resolve.mjs poseidon_preimage
+```
+
+You see something like:
+
+```json
+{
+  "name": "poseidon_preimage",
+  "version": "0.1.0",
+  "rootHash": "0x...",
+  "vkeyHash": "0x...",
+  "verifier": "0x0000000000000000000000000000000000000000",
+  "publisher": "0x...",
+  "publishedAt": "2026-05-12T09:30:00.000Z",
+  "metadataURI": "0gzk://poseidon_preimage@0.1.0",
+  "links": {
+    "publisher": "https://chainscan-galileo.0g.ai/address/0x...",
+    "verifier": null,
+    "registry": "https://chainscan-galileo.0g.ai/address/0x..."
+  }
+}
+```
+
+Exit code is **`0`** when the record is well-formed, **`1`** when **`rootHash`** is empty (the circuit name exists but no version has been registered yet).
+
+## `package.json`
+
+```json
+{
+  "name": "0gzk-example-resolve-by-name",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node resolve.mjs",
+    "smoke": "node resolve.mjs poseidon_preimage"
+  },
+  "dependencies": {
+    "@0gzk/sdk": "^0.2.0",
+    "ethers": "^6.13.0"
+  },
+  "engines": { "node": ">=20" }
+}
+```
+
+The only runtime dependencies are **`ethers`** and **`@0gzk/sdk`** (used through its **`/onchain`** subpath). No **`snarkjs`**, no **`@0gfoundation/0g-ts-sdk`**, no Node-only SDK code.
+
+## The script
+
+```javascript
+#!/usr/bin/env node
+// CircuitRegistry phone-book: given <name>[@<version>], print every field of
+// the on-chain record plus an explorer link. Read-only; no key required.
+//
+//   node resolve.mjs <name>[@<version>]
+
+import { JsonRpcProvider } from "ethers";
+import {
+  getRegistryContract,
+  getVersion,
+  getLatest,
+  parseNameSpec,
+} from "@0gzk/sdk/onchain";
+
+const RPC_URL = process.env.OG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
+const EXPLORER = process.env.OG_EXPLORER ?? "https://chainscan-galileo.0g.ai";
+const REGISTRY = process.env.OG_REGISTRY_ADDRESS;
+
+const spec = process.argv[2] ?? "poseidon_preimage";
+const parsed = parseNameSpec(spec);
+
+const provider = new JsonRpcProvider(RPC_URL);
+const registry = getRegistryContract(provider, REGISTRY);
+
+const { version, record } = parsed.version
+  ? { version: parsed.version, record: await getVersion(registry, parsed.name, parsed.version) }
+  : await getLatest(registry, parsed.name);
+
+const summary = {
+  name: parsed.name,
+  version,
+  rootHash: record.rootHash,
+  vkeyHash: record.vkeyHash,
+  verifier: record.verifier,
+  publisher: record.publisher,
+  publishedAt: new Date(record.publishedAt * 1000).toISOString(),
+  metadataURI: record.metadataURI,
+  links: {
+    publisher: `${EXPLORER}/address/${record.publisher}`,
+    verifier:
+      record.verifier === "0x0000000000000000000000000000000000000000"
+        ? null
+        : `${EXPLORER}/address/${record.verifier}`,
+    registry: `${EXPLORER}/address/${await registry.getAddress()}`,
+  },
+};
+
+console.log(JSON.stringify(summary, null, 2));
+
+if (!/^0x[0-9a-fA-F]{64}$/.test(record.rootHash) || record.rootHash === `0x${"0".repeat(64)}`) {
+  console.error("\nrootHash is empty - circuit not registered.");
+  process.exit(1);
+}
+```
+
+### `parseNameSpec` + branch on version
+
+```javascript
+const parsed = parseNameSpec(spec);
+const { version, record } = parsed.version
+  ? { version: parsed.version, record: await getVersion(registry, parsed.name, parsed.version) }
+  : await getLatest(registry, parsed.name);
+```
+
+**`parseNameSpec`** splits on the first **`@`**. The branch decides which RPC call to make:
+
+- With a version: call **`getVersion`** and bring the version through explicitly.
+- Without one: call **`getLatest`**, which already returns **`{ version, record }`**.
+
+After the ternary, both branches give us **`{ version, record }`** with the same shape.
+
+### Why JSON-first, then check
+
+```javascript
+console.log(JSON.stringify(summary, null, 2));
+
+if (!/^0x[0-9a-fA-F]{64}$/.test(record.rootHash) || record.rootHash === `0x${"0".repeat(64)}`) {
+  console.error("\nrootHash is empty - circuit not registered.");
+  process.exit(1);
+}
+```
+
+The script prints the full summary **before** the sanity check, so when CI fails on **`exit 1`** you still see what came back from the registry. This is much friendlier than a bare error string. The check rejects:
+
+- Anything that does not look like a 0x-prefixed 32-byte hex string.
+- The all-zero rootHash (which means "name exists, no version registered").
+
+### Explorer links
+
+```javascript
+links: {
+  publisher: `${EXPLORER}/address/${record.publisher}`,
+  verifier:
+    record.verifier === "0x0000000000000000000000000000000000000000"
+      ? null
+      : `${EXPLORER}/address/${record.verifier}`,
+  registry: `${EXPLORER}/address/${await registry.getAddress()}`,
+},
+```
+
+Two notes:
+
+- **`record.verifier`** is **`address(0)`** when no verifier has been set yet; rendering a link to the zero address is misleading, so the script emits **`null`** in that case.
+- **`registry.getAddress()`** is an ethers v6 helper that returns the contract address. It is async because ethers may need to resolve an ENS name; for a deployed contract it returns immediately.
+
+## Environment
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| **`OG_RPC_URL`** | **`https://evmrpc-testnet.0g.ai`** | Chain RPC. |
+| **`OG_EXPLORER`** | **`https://chainscan-galileo.0g.ai`** | Base URL for explorer links. |
+| **`OG_REGISTRY_ADDRESS`** | (built-in for chain 16602) | Override the registry address. |
+
+## Exercises
+
+- Replace **`getLatest`** with **`listVersions`** to print every published version of the name.
+- Pair this script with **`listCircuits`** (paginated) to build a small TUI registry browser.
+- Swap **`OG_EXPLORER`** to **`https://chainscan.0g.ai`** and point **`OG_RPC_URL`** at mainnet to query the production registry.

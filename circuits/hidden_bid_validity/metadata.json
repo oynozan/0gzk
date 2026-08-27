@@ -1,0 +1,41 @@
+{
+  "name": "hidden_bid_validity",
+  "version": "0.1.0",
+  "description": "Sealed-bid auction primitive: prove a private bid opens a public Poseidon commitment and is within a published [minBid, maxBid] range",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "bid": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Bidder's amount (constrained to 64 bits)"
+    },
+    "salt": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Random salt that hides the bid in the commitment"
+    },
+    "commitment": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Poseidon(bid, salt) published before the auction reveal phase"
+    },
+    "minBid": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Inclusive lower bound the bid must satisfy"
+    },
+    "maxBid": {
+      "type": "uint",
+      "visibility": "public",
+      "description": "Inclusive upper bound the bid must satisfy"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

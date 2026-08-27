@@ -1,0 +1,48 @@
+{
+  "name": "unique_human_nullifier",
+  "version": "0.1.0",
+  "description": "Proof of personhood: prove your private secret is in a depth-16 Poseidon Merkle tree of registered humans, and emit a deterministic per-app nullifier so the same human can perform the gated action at most once per app",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "secret": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Holder's secret. leaf = Poseidon(secret) lives in the registered-humans tree"
+    },
+    "pathElements": {
+      "type": "field[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Sibling hashes from leaf to root, bottom-up"
+    },
+    "pathIndices": {
+      "type": "uint[]",
+      "length": 16,
+      "visibility": "private",
+      "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up"
+    },
+    "humansRoot": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Public Merkle root of all registered humans"
+    },
+    "appId": {
+      "type": "field",
+      "visibility": "public",
+      "description": "App / context identifier; the nullifier is namespaced by it"
+    }
+  },
+  "outputs": {
+    "nullifier": {
+      "type": "field",
+      "description": "Poseidon(secret, appId). Spend once per app to prevent Sybil"
+    }
+  },
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

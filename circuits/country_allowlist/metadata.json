@@ -1,0 +1,48 @@
+{
+  "name": "country_allowlist",
+  "version": "0.1.0",
+  "description": "Prove your committed country code is one of the countries in a depth-8 Poseidon Merkle allowlist, without revealing which",
+  "protocol": "groth16",
+  "curve": "bn128",
+  "inputs": {
+    "countryCode": {
+      "type": "uint",
+      "visibility": "private",
+      "description": "Numeric country code (e.g. ISO 3166-1 numeric)"
+    },
+    "salt": {
+      "type": "field",
+      "visibility": "private",
+      "description": "Random salt that hides the country in the public commitment"
+    },
+    "pathElements": {
+      "type": "field[]",
+      "length": 8,
+      "visibility": "private",
+      "description": "Sibling hashes on the way from leaf to root, bottom-up"
+    },
+    "pathIndices": {
+      "type": "uint[]",
+      "length": 8,
+      "visibility": "private",
+      "description": "Per-level direction bits (0 = current is left child, 1 = right), bottom-up"
+    },
+    "commitment": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Poseidon(countryCode, salt). Pre-committed so the holder cannot change country mid-flight"
+    },
+    "allowlistRoot": {
+      "type": "field",
+      "visibility": "public",
+      "description": "Merkle root of allowed countries (leaf = Poseidon(countryCode))"
+    }
+  },
+  "outputs": {},
+  "files": {
+    "wasm": "circuit.wasm",
+    "zkey": "circuit_final.zkey",
+    "vkey": "verification_key.json",
+    "verifier": "verifier.sol"
+  }
+}

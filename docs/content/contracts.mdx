@@ -1,0 +1,74 @@
+---
+title: Contracts
+description: CircuitRegistry, IGroth16Verifier, deployed registry addresses, and how they relate to 0G Storage bundles.
+---
+
+# Contracts
+
+The Foundry package **`@0gzk/contracts`** (in the core monorepo) ships the **on-chain registry** and a minimal **verifier interface**. TypeScript clients use **`@0gzk/sdk/onchain`** with the same **`CircuitRegistry`** ABI; Solidity apps import or deploy these contracts as needed.
+
+## Deployed `CircuitRegistry` addresses
+
+Use these when you connect a wallet or **`ethers`** provider and call **`getRegistryContract`** without overriding the address.
+
+| Network | Chain ID | `CircuitRegistry` address |
+| --- | ---: | --- |
+| **Mainnet** | `16661` | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
+| **Testnet (Galileo)** | `16602` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
+
+Pass **`16661`** or **`16602`** into **`getRegistryContract(runner, address?, chainId)`** when you rely on baked-in defaults, or pass the **`address`** explicitly if you deployed your own registry.
+
+## `CircuitRegistry`
+
+**Purpose:** An **index**, not a vault. It maps human-friendly circuit names to **immutable version records** that point at 0G Storage.
+
+### Types you should know
+
+- **`Version`**: **`rootHash`**, **`vkeyHash`**, **`verifier`**, **`publisher`**, **`publishedAt`**, **`metadataURI`**.
+- **`Circuit`**: **`owner`** and the ordered list of version strings.
+
+### Lifecycle (happy path)
+
+1. **`createCircuit(name)`** claims a name (regex **`^[a-z0-9_-]{2,32}$`**).
+2. Build and upload the bundle off-chain; obtain **`rootHash`**.
+3. **`publishVersion(name, version, rootHash, vkeyHash, verifier, metadataURI)`**: owner pins that version forever.
+4. Optionally **`setVerifier`** if the Groth16 verifier address was unknown at publish time.
+
+### Consumer checklist
+
+When you read a registry record:
+
+1. Use **`rootHash`** to fetch the tarball from **0G Storage**.
+2. Recompute **`keccak256(canonical verification_key.json)`** and compare to **`vkeyHash`**.
+3. Optionally call **`IGroth16Verifier.verifyProof`** on the stored **`verifier`** address.
+
+The registry does not validate witnesses for you. It only says **where** the bundle lives and **which verification key** it commits to.
+
+## `IGroth16Verifier`
+
+Snarkjs-generated verifiers expose:
+
+```solidity
+function verifyProof(
+    uint256[2] calldata _pA,
+    uint256[2][2] calldata _pB,
+    uint256[2] calldata _pC,
+    uint256[] calldata _pubSignals
+) external view returns (bool ok);
+```
+
+Cast your deployed verifier to this interface in Hardhat or Foundry for clearer types at call sites.
+
+## Tooling
+
+From the monorepo:
+
+```bash
+cd packages/contracts
+forge build
+forge test
+```
+
+Deploy scripts for **`mainnet`** and **`galileo`** live in `package.json` (**`deploy:mainnet`**, **`deploy:galileo`**). Run them only with keys and RPC endpoints you control.
+
+**Source:** [`CircuitRegistry.sol`](https://github.com/0gzk/core/blob/main/packages/contracts/src/CircuitRegistry.sol), [`IGroth16Verifier.sol`](https://github.com/0gzk/core/blob/main/packages/contracts/src/IGroth16Verifier.sol).

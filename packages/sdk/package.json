@@ -1,0 +1,99 @@
+{
+  "name": "@0gzk/sdk",
+  "version": "0.3.2",
+  "description": "0gzk SDK: ZK Groth16 prover and 0G Storage helpers (isomorphic + Node)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js"
+    },
+    "./onchain": {
+      "types": "./dist/onchain/index.d.ts",
+      "import": "./dist/onchain/index.js"
+    },
+    "./build": {
+      "types": "./dist/build/index.d.ts",
+      "import": "./dist/build/index.js"
+    },
+    "./prover": {
+      "types": "./dist/prover.d.ts",
+      "import": "./dist/prover.js"
+    },
+    "./inputs": {
+      "types": "./dist/inputs.d.ts",
+      "import": "./dist/inputs.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0gzk/core.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/0gzk/core#readme",
+  "bugs": "https://github.com/0gzk/core/issues",
+  "license": "MIT",
+  "author": "0gzk",
+  "keywords": [
+    "zk",
+    "zero-knowledge",
+    "snarkjs",
+    "groth16",
+    "circom",
+    "0g",
+    "0g-storage",
+    "0gzk"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "clean": "rimraf dist *.tsbuildinfo",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --exclude \"tests/e2e/**\"",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run tests/e2e/live.test.ts"
+  },
+  "peerDependencies": {
+    "snarkjs": "^0.7.5",
+    "@0gfoundation/0g-ts-sdk": "^1.2.4",
+    "ethers": "^6.13.0"
+  },
+  "peerDependenciesMeta": {
+    "@0gfoundation/0g-ts-sdk": {
+      "optional": true
+    },
+    "ethers": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "tar": "^7.4.3"
+  },
+  "devDependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.4",
+    "@types/tar": "^6.1.13",
+    "ethers": "^6.13.0",
+    "rimraf": "^6.0.1",
+    "snarkjs": "^0.7.5",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.0"
+  }
+}

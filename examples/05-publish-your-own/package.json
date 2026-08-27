@@ -1,0 +1,18 @@
+{
+  "name": "0gzk-example-publish-your-own",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Walks a new circuit author from .circom file to a CircuitRegistry entry on Galileo.",
+  "scripts": {
+    "build": "bash build.sh",
+    "build:sdk": "node build.mjs"
+  },
+  "dependencies": {
+    "@0gzk/sdk": "^0.2.1",
+    "ethers": "^6.13.0",
+    "snarkjs": "^0.7.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,8 @@
+/* After nextra-theme-docs/style.css: map “primary” blues to brand lilac */
+html {
+  --x-color-blue-100: oklch(94% 0.06 308);
+  --x-color-blue-400: oklch(82% 0.14 308);
+  --x-color-blue-600: #f49bff;
+  --x-color-blue-700: #dc7ef0;
+  --x-color-blue-900: oklch(45% 0.14 308);
+}
