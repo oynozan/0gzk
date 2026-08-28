@@ -7,9 +7,8 @@ import ora, { type Ora } from "ora";
  * discovery tools server-side — users never need an LLM API key.
  */
 
-// ponytail: placeholder until the production domain is settled — users can
-// override any time with `0gzk config set agentUrl <url>` / OGZK_AGENT_URL.
-export const DEFAULT_AGENT_URL = "https://0gzk.vercel.app/api/agent";
+// Self-hosters override with `0gzk config set agentUrl <url>` / OGZK_AGENT_URL.
+export const DEFAULT_AGENT_URL = "https://0gzk.com/api/agent";
 
 export interface RemoteChatMessage {
   role: "user" | "assistant";

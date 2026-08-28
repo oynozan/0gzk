@@ -1,10 +1,11 @@
 # @0gzk/sdk
 
-ZK Groth16 prover and 0G Storage helpers for the [0gzk](https://github.com/0gzk/core) ZK Proof-as-a-Service platform. Three subpaths, picked automatically by your runtime:
+ZK Groth16 prover, storage backends, and registry client for the [0gzk](https://github.com/0gzk/core) ZK Proof-as-a-Service platform. Four subpaths, picked automatically by your runtime:
 
-- **`@0gzk/sdk`** — isomorphic (Node + browser): `generateProof`, `verifyLocal`, `validateInputs`, `BundleFiles`, `CircuitMetadata`, `InputValidationError`. Wraps `snarkjs.groth16` with metadata-driven input validation.
-- **`@0gzk/sdk/node`** — Node-only: `uploadBundle`, `fetchBundle`, `loadConfig`, `readBundleFromDir`. Talks to 0G Storage via `@0gfoundation/0g-ts-sdk`.
-- **`@0gzk/sdk/onchain`** — isomorphic: `getRegistryContract`, `getVersion`, `getLatest`, `listCircuits`, `resolveBundle`, `parseNameSpec`. Resolves circuits by name through the on-chain `CircuitRegistry`.
+- **`@0gzk/sdk`** — isomorphic (Node + browser): `generateProof`, `verifyLocal`, `validateInputs`, `BundleFiles`, `CircuitMetadata`, `InputValidationError`, plus the chain presets (`NETWORKS`, `resolveNetwork`, explorer URL helpers — 0G mainnet/testnet, Base, Base Sepolia) and the bundle-reference codec (`parseBundleRef`, `cidToRootHash`). Wraps `snarkjs.groth16` with metadata-driven input validation.
+- **`@0gzk/sdk/node`** — Node-only: `uploadBundle`, `fetchBundle`, `loadConfig`, `readBundleFromDir`, routed through pluggable storage backends — 0G Storage (via a lazily-imported `@0gfoundation/0g-ts-sdk`) or any `pinFileToIPFS`-compatible IPFS pinning service (no wallet, no gas).
+- **`@0gzk/sdk/onchain`** — isomorphic: `getRegistryContract`, `getVersion`, `getLatest`, `listCircuits`, `resolveBundle`, `parseNameSpec`. Resolves circuits by name through the on-chain `CircuitRegistry` on any supported chain.
+- **`@0gzk/sdk/build`** — Node-only: `buildCircuitBundle` and friends — the pure-JS trusted-setup pipeline (ptau fetch with BLAKE2b check, Groth16 setup, verifier export, bundle assembly).
 
 Witness data never leaves the calling process — proofs are generated client-side and only `proof + publicSignals` go anywhere else.
 
@@ -16,7 +17,7 @@ npm i @0gzk/sdk snarkjs
 npm i @0gzk/sdk snarkjs @0gfoundation/0g-ts-sdk ethers
 ```
 
-`snarkjs` is a hard peer. `@0gfoundation/0g-ts-sdk` and `ethers` are optional peers — only required if you import from `/node` or `/onchain` respectively.
+`snarkjs` is a hard peer. `@0gfoundation/0g-ts-sdk` and `ethers` are optional peers — `ethers` is required for `/onchain` and `/build`; `@0gfoundation/0g-ts-sdk` only when the 0G storage backend is actually used (IPFS-only consumers can skip it).
 
 ## TL;DR
 

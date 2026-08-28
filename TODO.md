@@ -6,6 +6,32 @@ will be promoted into milestone scope as priorities settle.
 
 ---
 
+## v0.4.0 ship checklist — Orion Builder Hackathon (deadline Sep 2, 23:59 UTC)
+
+Everything is coded, tested, and committed. Each remaining step is blocked on a
+credential or funds; run them in this order.
+
+- [ ] **Push to GitHub.** `git remote add origin https://github.com/0gzk/core.git && git push -uf origin main` (history was intentionally recreated — force push replaces the old remote history).
+- [ ] **Publish to npm** (order matters; `pnpm publish` rewrites `workspace:^` correctly — never `npm publish`):
+  ```bash
+  npm login
+  pnpm --filter @0gzk/sdk publish --access public
+  pnpm --filter @0gzk/mcp publish --access public
+  pnpm --filter @0gzk/cli publish --access public
+  ```
+- [ ] **Deploy web to 0gzk.com** (Vercel: root dir `web`, framework Next.js). Required env: `OPENAI_API_KEY` (powers `/api/agent`, gpt-5-nano). Optional: `OGZK_NETWORK`, `NEXT_PUBLIC_OGZK_NETWORK`, `OGZK_IPFS_GATEWAY`. Then smoke: `0gzk agent "which circuit proves age?"`.
+- [ ] **Base Sepolia registry.** Fund `0xE3641fB2b62DCe2f2e4F7370be1F67c740b79Fc7` with Base Sepolia faucet ETH, then:
+  ```bash
+  pnpm --filter @0gzk/contracts deploy:base-sepolia
+  # commit the printed address into packages/contracts/registry-addresses.json,
+  # packages/sdk/src/onchain/addresses.ts (84532), docs/content/networks.mdx
+  ```
+- [ ] **Base mainnet registry** (judges expect mainnet; also needed: ~$10 Base ETH ignition fee for submission): fund the same key with a few dollars of Base ETH, `pnpm --filter @0gzk/contracts deploy:base`, commit the 8453 address.
+- [ ] **Publish circuits on Base.** `0gzk config set ipfsApiToken <pinata-jwt>`, then per circuit: `0gzk publish circuits/<name>/circuit_bundle --network base-sepolia --register` (repeat with `--network base` after the mainnet deploy). Acceptance: `OGZK_NETWORK=base-sepolia 0gzk prove --name age_verification circuits/age_verification/example_input.json` with no 0G config anywhere.
+- [ ] **Submit on orionagents.org/hackathon**: register the wallet, submit with website `https://0gzk.com`, the GitHub repo, X profile, Discord/Telegram link, and a demo video (agent CLI session + browser prove flow).
+
+---
+
 ## v0.2 — Registry, Circuits, Tests, Docs
 
 The shipping milestone: turn 0gzk from "publish a bundle, prove it" into

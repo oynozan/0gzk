@@ -7,6 +7,7 @@ import { StatusLine } from "@/components/StatusLine";
 const BUILD_VERSION = "0.4.0";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://0gzk.com"),
   title: "0gzk — ZK proving on 0G Storage",
   description:
     "Engineering-spec interface for in-browser ZK Groth16 proving on 0G Storage. Witnesses never leave the device.",
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
     apple: "/logo.png",
   },
   openGraph: {
+    url: "https://0gzk.com",
     title: "0gzk — ZK proving on 0G Storage",
     description:
       "Publish a Circom circuit once. Anyone can prove against it client-side. Witnesses never leave the device.",

@@ -177,7 +177,7 @@ export default function WhitepaperPage() {
             under which those properties hold, and the v0.3 reference
             implementation currently deployed at{" "}
             <a
-              href={`https://explorer.0g.ai/mainnet/blockchain/accounts/${REGISTRY_ADDRESS}/transactions`}
+              href={`https://chainscan.0g.ai/address/${REGISTRY_ADDRESS}`}
               style={bodyLink}
               target="_blank"
               rel="noopener noreferrer"
@@ -187,6 +187,19 @@ export default function WhitepaperPage() {
             on 0G mainnet. We close with the open work — most notably a
             multi-party Phase&nbsp;2 ceremony — required before this scheme
             can be considered production-grade for high-value verification.
+          </p>
+          <p style={paragraph}>
+            <em>v0.4 addendum.</em> The scheme described here generalizes
+            beyond its original host: the registry contract is chain-agnostic
+            and now targets <strong>Base</strong> alongside 0G, with bundles
+            hosted on 0G Storage or pinned to <strong>IPFS</strong> as CIDv0
+            (whose sha2-256 digest occupies the same 32-byte rootHash slot).
+            Discovery gained an AI surface — an MCP server and the{" "}
+            <code style={inlineCode}>0gzk agent</code> CLI. See the{" "}
+            <a href="/ai" style={accentLink}>
+              agent &amp; MCP guide
+            </a>{" "}
+            and the docs for the current deployment matrix.
           </p>
 
           <h2 style={subhead}>Deployments</h2>
