@@ -51,6 +51,7 @@ export function Header() {
         >
           <Link href="/prove">PROVE</Link>
           <Link href="/inspect">INSPECT</Link>
+          <Link href="/ai">AI</Link>
           <Link href="/whitepaper">WHITEPAPER</Link>
           <a href="https://github.com/0gzk/core" target="_blank" rel="noopener noreferrer">
             SOURCE

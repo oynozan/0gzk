@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CircuitTable } from "@/components/CircuitTable";
+import { Command } from "@/components/CommandRow";
 import { Block, Row } from "@/components/SpecSheet";
 import { listAllCircuits } from "@/lib/server/registry";
 
@@ -45,7 +46,26 @@ export default async function HomePage() {
         )}
       </Block>
 
-      <Block title="LINKS" index="§ 02">
+      <Block title="INSTALL" index="§ 02">
+        <Row label="CLI" value={<Command text="npm i -g @0gzk/cli" />} unit="publish · prove · agent" />
+        <Row label="SDK" value={<Command text="npm i @0gzk/sdk snarkjs" />} unit="for your own app" />
+        <Row label="MCP" value={<Command text="claude mcp add 0gzk -- npx -y @0gzk/mcp" />} unit="Claude Code · Cursor" />
+        <Row
+          label="AGENT"
+          value={
+            <span>
+              <code style={{ color: "var(--text)" }}>0gzk agent</code> — ask for circuits in
+              plain language, no API key needed.{" "}
+              <Link href="/ai" style={{ color: "var(--accent)" }}>
+                /ai ▸
+              </Link>
+            </span>
+          }
+          unit="agent &amp; MCP guide"
+        />
+      </Block>
+
+      <Block title="LINKS" index="§ 03">
         <Row
           label="WHITEPAPER"
           value={
@@ -54,24 +74,6 @@ export default async function HomePage() {
             </Link>
           }
           unit="what this is, how it works"
-        />
-        <Row
-          label="CLI"
-          value={
-            <code style={{ color: "var(--text)" }}>
-              npm i -g @0gzk/cli
-            </code>
-          }
-          unit="local prover"
-        />
-        <Row
-          label="SDK"
-          value={
-            <code style={{ color: "var(--text)" }}>
-              npm i @0gzk/sdk
-            </code>
-          }
-          unit="for your own app"
         />
         <Row
           label="DOCS"

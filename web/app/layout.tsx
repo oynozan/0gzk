@@ -4,7 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { StatusLine } from "@/components/StatusLine";
 
-const BUILD_VERSION = "0.3.0";
+const BUILD_VERSION = "0.4.0";
 
 export const metadata: Metadata = {
   title: "0gzk — ZK proving on 0G Storage",
