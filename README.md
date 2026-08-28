@@ -146,7 +146,7 @@ pnpm smoke           # node prove.mjs age_verification 1990
 Two AI surfaces ship with the repo, both backed by the committed circuit catalog (`circuits/index.json`, regenerated with `0gzk catalog build`):
 
 - **[`@0gzk/mcp`](./packages/mcp)** — an MCP server exposing nine tools: circuit search over names/tags/use-cases, live-registry listing and resolution on every supported chain, plus authoring helpers (scaffold, validate, build, prove). `claude mcp add 0gzk -- npx -y @0gzk/mcp` wires it into Claude Code; this repo also ships a pre-wired [`.mcp.json`](./.mcp.json). Cursor and Claude Desktop configs are in the [package README](./packages/mcp/README.md).
-- **`0gzk agent`** — a terminal chat assistant (Claude Agent SDK) that mounts the same tools in-process: `0gzk agent "which circuit proves someone is over 18?"`. Uses `ANTHROPIC_API_KEY` (`0gzk config set anthropicApiKey ...`) or falls back to your Claude Code login. The Agent SDK is an optional install so plain CLI users never pay for it.
+- **`0gzk agent`** — a terminal chat assistant: `0gzk agent "which circuit proves someone is over 18?"`. **No API key needed** — the conversation runs through the hosted 0gzk backend (gpt-5-nano + the discovery tools, server-side), with every tool call traced in the terminal. Circuit authors can pass `--local` to run the Claude Agent SDK in-process with the full authoring toolset (scaffold → build → prove), using their own Anthropic key or Claude Code login.
 
 ## Repository layout
 

@@ -1,11 +1,11 @@
 ---
 title: "AI agent"
-description: "0gzk agent — a terminal AI assistant that discovers circuits and helps you author new ones."
+description: "0gzk agent — a terminal AI assistant that finds the circuits you need. No API key required."
 ---
 
 # AI agent
 
-**`0gzk agent`** is a terminal chat assistant built on the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview). It mounts the same nine [MCP tools](/mcp) in-process, so it can search the circuit catalog, resolve live registry records on 0G and Base, scaffold new circuits, build bundles, and run test proofs — from one prompt.
+**`0gzk agent`** is a terminal chat assistant that finds the circuits you need and shows you exactly how to prove against them. The default mode needs **no API key at all**: the conversation goes to the hosted 0gzk backend, which runs `gpt-5-nano` together with the same discovery tools the [MCP server](/mcp) exposes — search, schemas, example inputs, live registry records on 0G and Base — and returns the answer plus a full tool trace.
 
 ```bash
 # One-shot
@@ -15,45 +15,57 @@ description: "0gzk agent — a terminal AI assistant that discovers circuits and
 0gzk agent
 ```
 
-## Setup
-
-The Agent SDK is an **optional** dependency — plain CLI users never download it:
-
-```bash
-npm install -g @anthropic-ai/claude-agent-sdk   # alongside a global @0gzk/cli
-# (inside this repo it is already a dev dependency — nothing to install)
-```
-
-Authentication, in order of precedence:
-
-1. `ANTHROPIC_API_KEY` in your shell, or persisted once via
-   `0gzk config set anthropicApiKey sk-ant-...` (stored mode 0600, masked in `config get`).
-2. No key set? The agent falls back to your local **Claude Code login** if you have one.
-
-## Flags
-
-| Flag | Default | Purpose |
-| --- | --- | --- |
-| `--model <id>` | `claude-sonnet-5` | Any Anthropic model id (e.g. `claude-fable-5`) |
-| `--max-turns <n>` | `25` | Agentic turn budget per request |
-| `--full-access` | off | Allow file edits and shell commands. Default is 0gzk tools + read-only file access (`Read`/`Glob`/`Grep`) |
-| `--repo-root <dir>` | auto-detect | Point at a 0gzk checkout explicitly |
-
-Inside a repo checkout the agent runs in **repo mode** (catalog + authoring tools); anywhere else it still answers discovery questions from the live registries.
-
 ## What a session looks like
 
 ```
 $ 0gzk agent "which circuit proves someone is over 18?"
-  → mcp__0gzk__search_circuits {"query":"prove age over 18"}
-  → mcp__0gzk__get_circuit {"name":"age_verification"}
-Use age_verification: private birthYear, public currentYear and minAge,
-public isAdult output. Prove it with:
+
+╭──────────────────────────────────────────╮
+│ ✳ 0gzk agent                             │
+│                                          │
+│ model: gpt-5-nano (hosted)               │
+│ tools: 5 discovery tools                 │
+│ auth: none needed                        │
+╰──────────────────────────────────────────╯
+
+⏺ search_circuits({"query":"prove age over 18"})
+  ⎿ age_verification (score 21) …
+
+Use age_verification: private birthYear, public currentYear
+and minAge, public isAdult output. Prove it with:
   0gzk prove --name age_verification input.json
 
-[3 turn(s) · $0.21]
+────────────────────────────────────────
+gpt-5-nano · 6.2s
 ```
 
-Authoring flow the agent can drive end-to-end: `scaffold_circuit` → you write the constraints → `build_circuit` (needs the [circom](https://docs.circom.io/getting-started/installation/) binary) → `prove_circuit` with a test input → `0gzk publish --register`.
+Every turn prints the tools it called and a one-line summary of what they returned — there is no black box between the question and the answer.
 
-Each turn prints the tools it called (dimmed) and a cost footer, so there are no surprise bills — a typical discovery question costs a few cents on the default model.
+## Hosted backend
+
+The backend is the `POST /api/agent` route of the 0gzk web app. Self-hosters set one server-side env var (`OPENAI_API_KEY`; optional `OGZK_AGENT_MODEL` and `OPENAI_BASE_URL` for OpenAI-compatible providers) and point CLIs at their deployment:
+
+```bash
+0gzk config set agentUrl https://your-deployment/api/agent   # or OGZK_AGENT_URL
+```
+
+The endpoint is stateless: the CLI sends the visible conversation each turn, the server runs the model + tools and returns `{ reply, trace, model }`.
+
+## Local mode (circuit authors)
+
+`0gzk agent --local` runs the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview) in-process instead, with the **full nine-tool set** — including the authoring tools (`scaffold_circuit` → you write the constraints → `build_circuit` → `prove_circuit`) and read-only file access. This mode brings your own model:
+
+```bash
+npm install -g @anthropic-ai/claude-agent-sdk   # optional dep, alongside @0gzk/cli
+0gzk config set anthropicApiKey sk-ant-...      # or rely on your Claude Code login
+```
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--local` | off | In-process Claude mode with authoring tools |
+| `--model <id>` | `claude-sonnet-5` | Model for `--local` (e.g. `claude-fable-5`) |
+| `--max-turns <n>` | `25` | Agentic turn budget per request (`--local`) |
+| `--full-access` | off | `--local`: allow file edits and shell commands |
+| `--repo-root <dir>` | auto-detect | Point at a 0gzk checkout explicitly (`--local`) |
+
+Inside a repo checkout, local mode runs with the catalog and authoring tools; anywhere else it still answers discovery questions from the live registries.
