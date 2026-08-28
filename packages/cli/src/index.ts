@@ -263,19 +263,22 @@ registry
 program
   .command("agent")
   .description(
-    "Chat with an AI assistant that knows the 0gzk circuit catalog and registries. " +
-      "Needs @anthropic-ai/claude-agent-sdk installed and ANTHROPIC_API_KEY set.",
+    "Chat with an AI assistant that finds the circuits you need. No API key required — " +
+      "runs against the hosted 0gzk backend. Pass --local for the Claude-powered in-process " +
+      "mode with authoring tools.",
   )
   .argument("[prompt...]", "One-shot question; omit for an interactive chat")
-  .option("--model <model>", "Anthropic model id", "claude-sonnet-5")
-  .option("--max-turns <n>", "Max agentic turns per request", "25")
+  .option("--local", "Run the Claude Agent SDK locally (needs the SDK installed + Anthropic auth)")
+  .option("--model <model>", "Model id for --local mode", "claude-sonnet-5")
+  .option("--max-turns <n>", "Max agentic turns per request (--local mode)", "25")
   .option(
     "--full-access",
-    "Allow file edits and shell commands (default: 0gzk tools + read-only file access)",
+    "--local mode: allow file edits and shell commands (default: 0gzk tools + read-only file access)",
   )
-  .option("--repo-root <dir>", "Override 0gzk repo root detection")
+  .option("--repo-root <dir>", "Override 0gzk repo root detection (--local mode)")
   .action(async (promptWords: string[], opts) => {
     await runAgent(promptWords, {
+      local: Boolean(opts.local),
       model: opts.model,
       maxTurns: opts.maxTurns,
       fullAccess: Boolean(opts.fullAccess),

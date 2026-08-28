@@ -22,8 +22,10 @@ export interface GlobalConfig {
   ipfsApiUrl?: string;
   ipfsApiToken?: string;
   ipfsGateway?: string;
-  /** Anthropic API key used by `0gzk agent`. */
+  /** Anthropic API key used by `0gzk agent --local`. */
   anthropicApiKey?: string;
+  /** Hosted agent endpoint used by `0gzk agent` (default: the 0gzk deployment). */
+  agentUrl?: string;
 }
 
 export type ConfigKey = keyof GlobalConfig;
@@ -40,6 +42,7 @@ export const CONFIG_KEYS: ConfigKey[] = [
   "ipfsApiToken",
   "ipfsGateway",
   "anthropicApiKey",
+  "agentUrl",
 ];
 
 // Maps a config key to the env var it injects on startup, so SDK code that
@@ -56,6 +59,7 @@ export const CONFIG_TO_ENV: Record<ConfigKey, string> = {
   ipfsApiToken: "OGZK_IPFS_API_TOKEN",
   ipfsGateway: "OGZK_IPFS_GATEWAY",
   anthropicApiKey: "ANTHROPIC_API_KEY",
+  agentUrl: "OGZK_AGENT_URL",
 };
 
 export function getConfigDir(): string {
@@ -178,6 +182,7 @@ export function validateConfigValue(key: ConfigKey, value: string): void {
     case "indexerUrl":
     case "ipfsApiUrl":
     case "ipfsGateway":
+    case "agentUrl":
       try {
         const url = new URL(value);
         if (url.protocol !== "http:" && url.protocol !== "https:") {
