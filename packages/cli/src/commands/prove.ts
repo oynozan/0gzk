@@ -61,7 +61,7 @@ async function loadInputJson(inputPath: string): Promise<Record<string, unknown>
 
 async function resolveBundle(
   options: ProveOptions,
-): Promise<{ bundle: BundleFiles; source: string; cacheDir?: string }> {
+): Promise<{ bundle: BundleFiles; source: string; cacheDir?: string; rootHash?: string }> {
   const sources = [options.bundle, options.rootHash, options.name].filter(Boolean).length;
   if (sources > 1) {
     throw new Error("Use exactly one of --bundle, --root-hash, or --name.");
@@ -96,6 +96,7 @@ async function resolveBundle(
         bundle: result.bundle,
         source: `registry:${options.name}@${result.version}`,
         cacheDir: path.join(cacheRoot, result.rootHash.toLowerCase()),
+        rootHash: result.rootHash,
       };
     } catch (err) {
       spinner.fail("Registry resolve failed");
@@ -115,7 +116,7 @@ async function resolveBundle(
   if (await pathExists(cachedMetadata)) {
     console.log(chalk.dim(`cache:    hit at ${cacheDir}`));
     const bundle = await readBundleFromDir(cacheDir);
-    return { bundle, source: `cache:${cacheDir}`, cacheDir };
+    return { bundle, source: `cache:${cacheDir}`, cacheDir, rootHash };
   }
 
   console.log(chalk.dim(`cache:    miss, downloading to ${cacheDir}`));
@@ -130,7 +131,7 @@ async function resolveBundle(
   try {
     const bundle = await fetchBundle(rootHash, config, cacheDir);
     spinner.succeed(`Bundle cached at ${cacheDir}`);
-    return { bundle, source: `0g:${rootHash}`, cacheDir };
+    return { bundle, source: `0g:${rootHash}`, cacheDir, rootHash };
   } catch (err) {
     spinner.fail("Download failed");
     await fs.rm(cacheDir, { recursive: true, force: true }).catch(() => undefined);
@@ -152,7 +153,7 @@ export async function runProve(
   options: ProveOptions = {},
 ): Promise<void> {
   const inputs = await loadInputJson(inputPath);
-  const { bundle, source } = await resolveBundle(options);
+  const { bundle, source, rootHash } = await resolveBundle(options);
 
   console.log(chalk.dim(`circuit:  ${bundle.metadata.name} v${bundle.metadata.version}`));
   console.log(chalk.dim(`protocol: ${bundle.metadata.protocol} on ${bundle.metadata.curve}`));
@@ -204,7 +205,7 @@ export async function runProve(
       protocol: bundle.metadata.protocol,
       curve: bundle.metadata.curve,
     },
-    rootHash: options.rootHash ?? null,
+    rootHash: rootHash ?? options.rootHash ?? null,
     bundleSource: source,
     inputs,
     publicSignals: proof.publicSignals,

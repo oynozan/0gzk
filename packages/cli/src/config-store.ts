@@ -201,7 +201,7 @@ export function validateConfigValue(key: ConfigKey, value: string): void {
 // thing without leaking the secret in shell history or screen recordings.
 export function maskPrivateKey(value: string | undefined): string | undefined {
   if (!value) return value;
-  if (value.length <= 12) return "0x********";
+  if (value.length <= 12) return "********";
   return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 

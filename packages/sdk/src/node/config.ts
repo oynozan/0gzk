@@ -77,7 +77,11 @@ export function loadConfig(overrides: Partial<StorageConfig> = {}): StorageConfi
       ? "0g-mainnet"
       : resolveNetworkOrThrow(
           networkInput,
-          overrides.network ? "config" : env.OGZK_NETWORK ? "OGZK_NETWORK" : "OG_NETWORK",
+          overrides.network
+            ? "the network option"
+            : env.OGZK_NETWORK
+              ? "OGZK_NETWORK"
+              : "OG_NETWORK",
         );
   const preset = NETWORKS[network];
 
