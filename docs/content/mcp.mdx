@@ -67,4 +67,4 @@ Discovery is powered by **`circuits/index.json`** — a committed, deterministic
 | `OGZK_REPO_ROOT` | Force repo mode from any working directory |
 | `OGZK_CACHE_DIR` | Bundle cache root (default `~/.0gzk/bundles`) |
 
-The same tool set powers [`0gzk agent`](/agent): the discovery tools run server-side in its hosted backend, and `--local` mode mounts all nine in-process.
+The same server powers [`0gzk agent`](/agent). Its hosted backend is an MCP client connected to this server over an in-memory transport (discovery tools only — the authoring tools write to disk and are never exposed on a public endpoint), and `--local` mode mounts all nine tools in-process. Three transports, one implementation.

@@ -8,15 +8,23 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { ServerContext } from "./context.js";
 import { GUIDE_TEXT } from "./guide.js";
-import { allToolDefs } from "./tools/index.js";
+import { allToolDefs, type ToolDef } from "./tools/index.js";
 
 const require = createRequire(import.meta.url);
 const PKG_VERSION: string = (require("../package.json") as { version: string }).version;
 
-export function buildMcpServer(ctx: ServerContext): McpServer {
+/**
+ * Build the MCP server. `toolDefs` defaults to everything the context's mode
+ * allows; pass an explicit subset to expose fewer tools — e.g. a hosted
+ * deployment serving only the read-only discovery tools.
+ */
+export function buildMcpServer(
+  ctx: ServerContext,
+  toolDefs: ToolDef[] = allToolDefs(ctx.mode),
+): McpServer {
   const server = new McpServer({ name: "0gzk", version: PKG_VERSION });
 
-  for (const def of allToolDefs(ctx.mode)) {
+  for (const def of toolDefs) {
     server.registerTool(
       def.name,
       {

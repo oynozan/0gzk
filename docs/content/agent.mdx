@@ -43,7 +43,7 @@ Every turn prints the tools it called and a one-line summary of what they return
 
 ## Hosted backend
 
-The default endpoint is `https://0gzk.com/api/agent` — the `POST /api/agent` route of the 0gzk web app. Self-hosters set one server-side env var (`OPENAI_API_KEY`; optional `OGZK_AGENT_MODEL` and `OPENAI_BASE_URL` for OpenAI-compatible providers) and point CLIs at their deployment:
+The default endpoint is `https://0gzk.com/api/agent` — the `POST /api/agent` route of the 0gzk web app. That route is itself an **MCP client**: it connects to the same [`@0gzk/mcp`](/mcp) server the `0gzk-mcp` binary serves over stdio (here over an in-memory transport) and drives it with `tools/list` / `tools/call`, exposing only the read-only discovery tools. The protocol path your editor uses is the one the hosted agent exercises on every request. Self-hosters set one server-side env var (`OPENAI_API_KEY`; optional `OGZK_AGENT_MODEL` and `OPENAI_BASE_URL` for OpenAI-compatible providers) and point CLIs at their deployment:
 
 ```bash
 0gzk config set agentUrl https://your-deployment/api/agent   # or OGZK_AGENT_URL
