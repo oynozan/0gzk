@@ -23,9 +23,10 @@ export interface PublicationRecord {
   version: string;
   rootHash: string;
   vkeyHash: string;
-  verifier: string;
-  publisher: string;
-  metadataURI: string;
+  /** Null when imported from a local receipt, which does not record them. */
+  verifier: string | null;
+  publisher: string | null;
+  metadataURI: string | null;
   storage: string;
   storageTxSeq: number | null;
   registryTxHash: string | null;
@@ -39,9 +40,9 @@ export const PublicationRecordSchema = z.object({
   version: z.string(),
   rootHash: z.string(),
   vkeyHash: z.string(),
-  verifier: z.string(),
-  publisher: z.string(),
-  metadataURI: z.string(),
+  verifier: z.string().nullable(),
+  publisher: z.string().nullable(),
+  metadataURI: z.string().nullable(),
   storage: z.string(),
   storageTxSeq: z.number().int().nullable(),
   registryTxHash: z.string().nullable(),

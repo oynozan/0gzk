@@ -84,6 +84,36 @@
           "storageTxSeq": null,
           "registryTxHash": null,
           "publishedAt": "2026-05-10T06:26:25.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x263a4aaaa549cc2a6079236873f9f212bf1d5c8678073d1f6fd6b1726b525157",
+          "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmQuskmkNKzw57e9Kzsnhw89rnprvs1ke2Rs5TRrwFkkfQ",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x98f641c25ce954757f2e2759d2cf9326c3797b6e3c516b1684b036d1c5202c79",
+          "publishedAt": "2026-08-30T18:56:21.316Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xb8a268acd483e8bba89c82e5556a30457957cad7a22a84cecd2fd09a414469bb",
+          "vkeyHash": "0xfe1db73893ea6553a11d8cb6488a1a00d91e2da8c21734e3f0ae44d2ce1a896e",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmamPMuE4QxyZa6r9qc74QzWo3L4rG9ZyRekiWN91pkxDY",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x28c9f8506bfe947fa964da19a3fbcf1d1b77f35eaf5e3346595900b25078a7e4",
+          "publishedAt": "2026-08-30T18:59:21.487Z"
         }
       ],
       "dir": "circuits/age_verification"
@@ -199,7 +229,38 @@
         "nPubOut": 2,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x070e418737ec402e2d0f1c7cc2e85028d7631171c2a97d2fac9ca60812d7a3e0",
+          "vkeyHash": "0xf296de0a2bf8926a739a9d201d0480c71bc2008442053fec9a2a4ad6d4b595b9",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmNpCAu6FseKUKZmBeSByAa28m3xsQXnaiSpYyQNx1p6fR",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xcf3070b8e67b0b7c28080d1855c47835cf4ff2333ab6993fc94ba32db8c26126",
+          "publishedAt": "2026-08-30T18:56:28.107Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xaba2bad98b8e0db441bb450fb2cdf45fa8fb7a6731cdb28398097e5389cbf59a",
+          "vkeyHash": "0xf296de0a2bf8926a739a9d201d0480c71bc2008442053fec9a2a4ad6d4b595b9",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmZteLxnrs7wKjv2qqabyKWp3uQmGxwLYeSjanSxSmS8qw",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x6cf4436f0a5ac5beea1ca4d84eb203e86e05aeebfaa7f6ad88fa42bd6ebb233e",
+          "publishedAt": "2026-08-30T18:59:32.368Z"
+        }
+      ],
       "dir": "circuits/anonymous_vote"
     },
     {
@@ -304,6 +365,36 @@
           "storageTxSeq": null,
           "registryTxHash": "0x004b7fdbcf14c0edd6094d498ce1bef0f3990055d4ec03a6ae94f3985f70e189",
           "publishedAt": "2026-05-16T02:01:19.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x568a4c01955ffec02d103f25583768551b13fcb60b6b433e2bc2ee93171293e0",
+          "vkeyHash": "0xe57db603892a78c7dac45b5ebcd9a9afd8349d62c17f5cc9994ebd66558c054c",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmUAU5iBWinBYfDFKhPsa1VGDZKnJjhEtNPRBuZvPgNP5h",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x5df5ffa2245261a994c12887782d5ffcd09fbe49a24fe5fb0ecfe37d58651d46",
+          "publishedAt": "2026-08-30T18:56:34.464Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xed6cd6d3bd256b2a73fe5c83a6a8e2b89fcff89ec2cdaed56aff89f1cd9a5cff",
+          "vkeyHash": "0xe57db603892a78c7dac45b5ebcd9a9afd8349d62c17f5cc9994ebd66558c054c",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmeKTbH8jafEc39GzmZ3F27qx2MKk6tXrX2QUgaCyzzLML",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x74ef3b01b457a137ba34444646972bf055c0248e1fdc13b87f08b20a2af11899",
+          "publishedAt": "2026-08-30T18:59:38.078Z"
         }
       ],
       "dir": "circuits/country_allowlist"
@@ -391,7 +482,38 @@
         "nPubOut": 1,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x7392e46e3c33f07801eda12a63f2ae2ccf546e51fbacf22ebdf4582bd91c9f36",
+          "vkeyHash": "0x27539b90bd8d7e1ce5d3c332cc9ccc0697954ee6da71f3ea68c02a432b0aee70",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmW7oWN5JyZTE3vdESLqcKegkkLG1w8cuRwhkwE79rX4cV",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x0011f7121afff0c97b7b8834bd783338d0a3af6bddb10ca569af3c748764ab6d",
+          "publishedAt": "2026-08-30T18:56:41.128Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xa4e23c5d12b4155836cbe06723e949fc19b9b3a30bbdd31932d974800a19717a",
+          "vkeyHash": "0x27539b90bd8d7e1ce5d3c332cc9ccc0697954ee6da71f3ea68c02a432b0aee70",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmZSHf1Dp7zQUGKtEDUXMh8i5aXDUvv8qtnoYsnogEYQFB",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x29aeb4fa29ac56a023ee3a7f0cbabd6fd8f1d2a0d181c26c395815789835713a",
+          "publishedAt": "2026-08-30T18:59:44.954Z"
+        }
+      ],
       "dir": "circuits/eddsa_credential_check"
     },
     {
@@ -460,7 +582,38 @@
         "nPubOut": 0,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xe4a3c824cf97ef9fa0a30fd9c5fe4a5dbcf374adf9ff0fca1e908a25b569235e",
+          "vkeyHash": "0xe38ec6c62ed3a37f93f76b603d40f450e9824127a1fd5aa2b2fc141be0d92202",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmdjAWmf9iWujMWQFDpBji3VtYg3FLQGoE2E4FMzxux7qo",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xdc3dd0d4463f151d52d5ab56f065de7f9ce85c48ddace403d558ae2634d6b9c5",
+          "publishedAt": "2026-08-30T18:56:45.703Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xf555c5021f1039fd686785568e58bdb6f027e5123cf0e2cbce6e41ecba1ad5cf",
+          "vkeyHash": "0xe38ec6c62ed3a37f93f76b603d40f450e9824127a1fd5aa2b2fc141be0d92202",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmerLT5piRp1E8VnWyzkzegnv57Kpo6uUkuyTAsqty2FFc",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xbea401353adb5b0bcec9aae6aaca2e658015fd5c9b74800b6cbf744cfa68b775",
+          "publishedAt": "2026-08-30T18:59:49.484Z"
+        }
+      ],
       "dir": "circuits/geofence_proof"
     },
     {
@@ -523,7 +676,38 @@
         "nPubOut": 0,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x494764bd381d7ed20f3fea0b3f47b29cc51509677ebbfd3baec28cfa7a9bc324",
+          "vkeyHash": "0xf2639038ebc1fb3026b1fe1cf5d91b674ff134d9ba7a03a22bfc28f7e14fea6f",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmTGhcTte4CytkGnta2BsyJ5GBmST96aAqW6HXHDPpp8r7",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x8152cf06d46160b94fc19fca380f4ac0d023b1f0d0b3d674d25411e962443896",
+          "publishedAt": "2026-08-30T18:54:01.130Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x0f0d3f7720f9830e2359c20a0ba099d66dea14d561aec0fec1b0c4dcead5aa50",
+          "vkeyHash": "0xf2639038ebc1fb3026b1fe1cf5d91b674ff134d9ba7a03a22bfc28f7e14fea6f",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmPMQYMwYcnNfkTBk22wVspgWyAGtpE6qESsZnF8PTp3aP",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x07f6aa2b1f00e0f9684b855eed5f8264c71862fd72ee517d39eb0768a6b48ae7",
+          "publishedAt": "2026-08-30T18:58:16.197Z"
+        }
+      ],
       "dir": "circuits/hidden_bid_validity"
     },
     {
@@ -630,6 +814,36 @@
           "storageTxSeq": null,
           "registryTxHash": null,
           "publishedAt": "2026-05-11T08:38:37.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x4d2e4b3e1d707dcf4c36b7679e448ff632746cd705bf1dd638d647b25d97b841",
+          "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmTXw3Z6TKYZgVorRXZwyTBQsBFUFWTFTcUFvqAcZM8xkp",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xe1d531657243181b21c1c6dab8b8266f8a54c9cb1dae2b070efaba0ad4c4955e",
+          "publishedAt": "2026-08-30T18:56:51.339Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x448da216497380dfc395606da37b9bbcd3cfbd4539037a176d8961fa3a932f81",
+          "vkeyHash": "0x84e2358256c9737218dfef2569ea709772a38c30dd6204b1da482b0b7299be76",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmSxFhD5opnRJKErkbEZHcr25XMci5ZRiJsTb4EPrbSSdn",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xb951e685c55d6003ad68abb12f50c80b4938a0bac04a129fdf969c2f1611545a",
+          "publishedAt": "2026-08-30T18:59:55.310Z"
         }
       ],
       "dir": "circuits/merkle_membership"
@@ -706,6 +920,36 @@
           "storageTxSeq": null,
           "registryTxHash": null,
           "publishedAt": "2026-05-11T09:25:58.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xfd580749f6ed49e2d71bcc881c4fa5a5d2b8e62b250bba05e8e2ac51ad2c3d49",
+          "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmfPbi8MPWZDLRb1N2dqzZQNN96DYMCErXVeoEeu7H59B6",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xf81c449bc4ef26e803fde0591c44099edeb9bd2e973406ab42578f1ac447d92e",
+          "publishedAt": "2026-08-30T18:56:56.112Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x6460a89939acecb538c4c7d33431d3b3cb24ce853afc5afe375524576a063796",
+          "vkeyHash": "0x2a2d8d3e3c95fe75c99e5441f45bacb3b2e460cb952fefa905976889b796864d",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmV6UxuNEb5zmvFT7kJqBk3u2tZyrJmqP2Bc4pHG57S57b",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x5cafc3c3424d1153afdab7ec5bcb252827f9cf13ad310006dda2837c3251f2ec",
+          "publishedAt": "2026-08-30T19:00:00.700Z"
         }
       ],
       "dir": "circuits/poseidon_preimage"
@@ -780,6 +1024,36 @@
           "storageTxSeq": 103268,
           "registryTxHash": "0x2c247830cffed1dbfca8ac1ba8e108b189e9aa96c51e156dd496b2ec1485bd51",
           "publishedAt": "2026-05-11T09:26:48.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xca29b767c3023adf359e1435a9b955c1b4efc35e2ce392b98087a05e211ac523",
+          "vkeyHash": "0x1261b3abbb22f8e8f08af014c77c44a9f13af4571f9ffca4702e2e90b26222fd",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmbwoxZLXQrhDCCAouDU8j9sXQ5BdKrwmygCur8A4ea3fg",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x12aa1f80fee5e6d1cd1594e3b00ab5cd9b52e7f3b487e96b1770870a84aa62e4",
+          "publishedAt": "2026-08-30T18:57:01.125Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x648f235a98857c07907eba9d2869c2f6d65926ba42569c0ad12b95b543fbcd2a",
+          "vkeyHash": "0x1261b3abbb22f8e8f08af014c77c44a9f13af4571f9ffca4702e2e90b26222fd",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmV7C56N1BFZX6cXyYVqiDLs6HCfpHMU4G2ebnNSr3VjQm",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xa422ec0836e51c73e29fc5a36a8058454e93e70fac79ecb44fe769924782b75f",
+          "publishedAt": "2026-08-30T19:00:11.758Z"
         }
       ],
       "dir": "circuits/private_balance_threshold"
@@ -891,7 +1165,38 @@
         "nPubOut": 1,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xb300afaab76257b830447d70964071a5b74eca340ded4254c52db92832cfcfaf",
+          "vkeyHash": "0x921aca0caf31ebae02cdf6b345e9e634aaa551ae32519f12674165db2cb94bc7",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmaPQJ2KyPzoeWJiUhTTTMYSbQSpQvrbbgF9bbYDVCAZvN",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x5c8b0423f178144b6182bb791f6715d5cdd96ef1b5516bdd2a24d028aee3ccdd",
+          "publishedAt": "2026-08-30T18:54:28.491Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x7eaed575f80f2fa055d1290cb6f913e9a28a35e64e7271b0f8102d4879503c92",
+          "vkeyHash": "0x921aca0caf31ebae02cdf6b345e9e634aaa551ae32519f12674165db2cb94bc7",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmWsAhkS1JDyFeJKVb5zQRT4JTZysNcno9HqNC4AjapEL9",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x5385e3691d70805f0a0837e03de71ceff893cfe022fef200ffec56a9203b2ecb",
+          "publishedAt": "2026-08-30T19:00:18.272Z"
+        }
+      ],
       "dir": "circuits/private_transfer"
     },
     {
@@ -941,7 +1246,38 @@
         "nPubOut": 0,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x9ffb2c752632b482199085d8461237bfbce62e76fe3112c58083cec553e3d89c",
+          "vkeyHash": "0xa21c14ca773af3cb5f359ddb44f0be06dad4e57d51165dfa1fb7a0b93a6c67e7",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmZ79fyMkMHwLBQVJYkRSPrqetZtBvkW4qnBtcuhnDbNLj",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xeb0b39cf1cf445890d2c91e78fdf05b070013be766218666f70af55d8266c278",
+          "publishedAt": "2026-08-30T18:57:06.363Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x6285fdbbe2eff28bdebd3ddd305f9fe712b9e7ba0589cfe4183ec8b3bc421131",
+          "vkeyHash": "0xa21c14ca773af3cb5f359ddb44f0be06dad4e57d51165dfa1fb7a0b93a6c67e7",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmUyFAbvG3igbRnxP2WrZhjNCHUfVwgwM5gQDxFs6PAE5E",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x969e39c6e7ea5d1a1ed49e5a01fd84df5845eefebddaad47f91e2fff596df8ee",
+          "publishedAt": "2026-08-30T19:00:23.486Z"
+        }
+      ],
       "dir": "circuits/range_proof_64bit"
     },
     {
@@ -997,7 +1333,38 @@
         "nPubOut": 0,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x2092f2401ec44cd4478b5f0f547e84ba48db34881fd688cad96e846f615bfd42",
+          "vkeyHash": "0xeed33a28ea31b2c20de68bb67c15a0214e7171ff9e57e059ae527f99c7434e10",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmQXoiUaS35d1BMzSwxcv45bJmkxhGxhMwSjZBxTys98kh",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x9c5e225964ca447aef261c3d202085eb60dcf1032709a5d2a6eb123e95a4307c",
+          "publishedAt": "2026-08-30T18:54:48.334Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x2804ebccb26faadb925bced55a247bb0501b05ec61bc29c25e300ca17a7bbba9",
+          "vkeyHash": "0xeed33a28ea31b2c20de68bb67c15a0214e7171ff9e57e059ae527f99c7434e10",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmR2sNPt3eZdAZuP5XTd5r61MTsPj1Ne7HkeGuK6CJxZnp",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xe19a2ba4511eb8ce87696dab2ce6ae1104cde5f34fb90fb0f3d4d589a990bf67",
+          "publishedAt": "2026-08-30T19:00:33.160Z"
+        }
+      ],
       "dir": "circuits/sha256_preimage_short"
     },
     {
@@ -1108,7 +1475,38 @@
         "nPubOut": 0,
         "source": "r1cs-header"
       },
-      "publications": [],
+      "publications": [
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xa55e5f20eae1d4a5252c39731fd2cad21f1f284c0dcf5fd559a99c2769ac436b",
+          "vkeyHash": "0x9336722f3eac1f93b11b0d5d4ecbd5b7ac6a1be4b4486553e365fcb2b9001c31",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmZUBScSY6vdkZazCPTDNv2rELGnB248rhyWMgCDYnhTuC",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xfc393e09f13e7061184f77ca7264501d323bbb18cef9fc5cf5ae76579126b62d",
+          "publishedAt": "2026-08-30T18:57:13.356Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x10e2144f83f65d2cf9a7d61572dd726fb3882729130f420eab606e6fb0e7d474",
+          "vkeyHash": "0x9336722f3eac1f93b11b0d5d4ecbd5b7ac6a1be4b4486553e365fcb2b9001c31",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmPUZBJSXvdhTE96BEfz8uRxLwDDrpHe3bNBjUvfjLYYNF",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xe7d369994f1d6154a4c528c24d2f3835e69ef81130f5f705a792d1bffc6563d3",
+          "publishedAt": "2026-08-30T19:00:46.657Z"
+        }
+      ],
       "dir": "circuits/solvency_attestation"
     },
     {
@@ -1227,6 +1625,36 @@
           "storageTxSeq": 102563,
           "registryTxHash": "0x754719f5d6163eb930df38b37ac54371647dfbc069060109295eb8a24adb0556",
           "publishedAt": "2026-05-16T01:55:19.000Z"
+        },
+        {
+          "chain": "base-sepolia",
+          "chainId": 84532,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0x85a517706c7706caadbe2970548ff40ebcd92718894e1fa1642d66aa594e0f03",
+          "vkeyHash": "0xa16e35d413f20548bd644a0cbaf05ee1426b9cd9fea9bf93d750a40210e83a88",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmXLLwYHghvTJWgJSu3VZa7zEYa6dzHACdstXjmZQi2dpv",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0xde4fadb01346f8187b9fde544119c661555a4dea558ae423bf9d2d4d105ea0d5",
+          "publishedAt": "2026-08-30T18:57:20.340Z"
+        },
+        {
+          "chain": "base",
+          "chainId": 8453,
+          "registry": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+          "version": "0.1.0",
+          "rootHash": "0xe1e837bca11a1b7e7c38ba78d0083c962276fe2521e84c49bcb47ab4ca20b096",
+          "vkeyHash": "0xa16e35d413f20548bd644a0cbaf05ee1426b9cd9fea9bf93d750a40210e83a88",
+          "verifier": null,
+          "publisher": null,
+          "metadataURI": "ipfs://QmdYVpHVesBfZUxegcBMPgj91h71ZBpEyJ8enARPgeRhJm",
+          "storage": "ipfs",
+          "storageTxSeq": null,
+          "registryTxHash": "0x93cd2a1caf3c6621115a11ed5c2d2bedbc2794953ac0409f1120da143b226a8a",
+          "publishedAt": "2026-08-30T19:00:53.302Z"
         }
       ],
       "dir": "circuits/unique_human_nullifier"
