@@ -6,7 +6,7 @@
 [![npm: @0gzk/cli](https://img.shields.io/npm/v/@0gzk/cli?label=%40%30gzk%2Fcli)](https://www.npmjs.com/package/@0gzk/cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Circuit authors compile a Circom circuit, run a one-shot trusted setup, and publish the resulting `circuit_bundle/` (wasm + zkey + verification key + verifier contract + metadata) to **0G Storage** (default) or **IPFS** as a single content-addressed `tar.gz`. The returned `rootHash` is the bundle's content address (on IPFS it is the CIDv0's sha2-256 digest, bijective with the CID). An on-chain `CircuitRegistry` — deployed on **0G Chain**, with **Base** support landing (Sepolia first) — maps `name@version` to that hash. Anyone can fetch the bundle back, validate inputs against the circuit's schema, and produce a Groth16 proof locally — in Node, in a browser, or via the `0gzk` CLI. Optional on-chain verification uses the auto-generated `verifier.sol`.
+Circuit authors compile a Circom circuit, run a one-shot trusted setup, and publish the resulting `circuit_bundle/` (wasm + zkey + verification key + verifier contract + metadata) to **0G Storage** (default) or **IPFS** as a single content-addressed `tar.gz`. The returned `rootHash` is the bundle's content address (on IPFS it is the CIDv0's sha2-256 digest, bijective with the CID). An on-chain `CircuitRegistry` — deployed on **0G Chain** and **Base** (mainnet + Sepolia, same address `0xCe9f…E64d` on all three) — maps `name@version` to that hash. Anyone can fetch the bundle back, validate inputs against the circuit's schema, and produce a Groth16 proof locally — in Node, in a browser, or via the `0gzk` CLI. Optional on-chain verification uses the auto-generated `verifier.sol`.
 
 ## Architecture
 
@@ -206,8 +206,8 @@ The Node surface and the CLI default to **0G mainnet** (`0g-mainnet`, chain ID *
 | ------------- | -------: | ---------------------------- | ----------------------------- | -------------------------------------------- |
 | `0g-mainnet`  | `16661`  | `https://evmrpc.0g.ai`         | `https://chainscan.0g.ai`         | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 | `0g-testnet`  | `16602`  | `https://evmrpc-testnet.0g.ai` | `https://chainscan-galileo.0g.ai` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
-| `base-sepolia`| `84532`  | `https://sepolia.base.org`     | `https://sepolia.basescan.org`    | pending deploy                               |
-| `base`        | `8453`   | `https://mainnet.base.org`     | `https://basescan.org`            | not deployed                                 |
+| `base-sepolia`| `84532`  | `https://sepolia.base.org`     | `https://sepolia.basescan.org`    | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
+| `base`        | `8453`   | `https://mainnet.base.org`     | `https://basescan.org`            | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 
 The deprecated aliases `mainnet` → `0g-mainnet` and `testnet` → `0g-testnet` are still accepted everywhere; unknown network names now error (listing the valid values) instead of silently defaulting.
 

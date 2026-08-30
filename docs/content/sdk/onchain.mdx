@@ -22,10 +22,10 @@ function getRegistryAddress(chainId: number): string | null;
 | ---: | --- | --- |
 | **`16661`** | 0G mainnet (`0g-mainnet`) | **`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`** |
 | **`16602`** | 0G Galileo testnet (`0g-testnet`) | **`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`** |
-| **`84532`** | Base Sepolia (`base-sepolia`) | **`null`** — pending deploy, will be filled |
-| **`8453`** | Base mainnet (`base`) | **`null`** — not deployed |
+| **`84532`** | Base Sepolia (`base-sepolia`) | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
+| **`8453`** | Base mainnet (`base`) | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 
-**`getRegistryAddress(chainId)`** returns **`null`** for unknown chains (and for known chains whose registry is not deployed yet). **`getRegistryContract`** falls back to this map when the caller does not pass an explicit address; on a `null` entry it throws, so pass an explicit **`address`** on Base until the deployed addresses land in a release.
+**`getRegistryAddress(chainId)`** returns **`null`** for unknown chains (and for known chains whose registry is not deployed yet). **`getRegistryContract`** falls back to this map when the caller does not pass an explicit address; on a `null` entry it throws. All four chains carry baked-in addresses since 0.4.0 — the registry deploys to the same address on 0G mainnet, Base Sepolia, and Base mainnet (same deployer, nonce-0 CREATE).
 
 ### `CIRCUIT_REGISTRY_ABI`
 

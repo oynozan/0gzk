@@ -20,7 +20,7 @@ export { backendForRef } from "../../bundle-ref.js";
 export type UploadResult = StorageUploadResult;
 
 const DEFAULT_IPFS_API_URL = "https://api.pinata.cloud/pinning/pinFileToIPFS";
-const DEFAULT_IPFS_GATEWAY = "https://ipfs.io";
+const DEFAULT_IPFS_GATEWAY = "https://gateway.pinata.cloud";
 
 type FetchConfig = Pick<StorageConfig, "indexerUrl"> &
   Partial<Pick<StorageConfig, "storage" | "storageNetwork" | "network" | "rpcUrl" | "ipfs">>;

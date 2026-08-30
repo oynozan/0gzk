@@ -31,8 +31,8 @@ Provides the `0gzk` binary.
 | --- | --- | --- | --- |
 | `0g-mainnet` (default) | 16661 | baked in | 0G Storage |
 | `0g-testnet` | 16602 | baked in | 0G Storage |
-| `base` | 8453 | pending deploy | IPFS |
-| `base-sepolia` | 84532 | pending deploy | IPFS |
+| `base` | 8453 | baked in | IPFS |
+| `base-sepolia` | 84532 | baked in | IPFS |
 
 `mainnet` / `testnet` still work as deprecated aliases for the 0G pair. On Base, bundles pin to IPFS (any `pinFileToIPFS`-compatible service; set `ipfsApiToken`) so no 0G wallet is ever needed.
 

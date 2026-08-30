@@ -22,7 +22,7 @@ export interface IpfsConfig {
 }
 
 const DEFAULT_IPFS_API_URL = "https://api.pinata.cloud/pinning/pinFileToIPFS";
-const DEFAULT_IPFS_GATEWAY = "https://ipfs.io";
+const DEFAULT_IPFS_GATEWAY = "https://gateway.pinata.cloud";
 
 /**
  * Resolved runtime config. The name predates multi-chain support: it carries

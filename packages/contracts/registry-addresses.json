@@ -3,8 +3,8 @@
   "addresses": {
     "16602": "0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6",
     "16661": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
-    "84532": null,
-    "8453": null
+    "84532": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d",
+    "8453": "0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d"
   },
   "networks": {
     "16602": "0g-galileo-testnet",

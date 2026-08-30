@@ -23,6 +23,16 @@ import type { StorageBackend, StorageUploadResult } from "./types.js";
  * fetches through a plain HTTP gateway. Bundles are pinned as CIDv0 so the
  * sha2-256 digest doubles as the registry's bytes32 rootHash.
  */
+/** Tried in order after the configured gateway; first success wins. */
+const FALLBACK_GATEWAYS = [
+  "https://gateway.pinata.cloud",
+  "https://ipfs.io",
+  "https://dweb.link",
+  "https://w3s.link",
+];
+
+const GATEWAY_TIMEOUT_MS = 30_000;
+
 export class IpfsStorageBackend implements StorageBackend {
   readonly id = "ipfs" as const;
 
@@ -111,15 +121,38 @@ export class IpfsStorageBackend implements StorageBackend {
         : await makeTempDir(`0gzk-fetch-${randomUUID().slice(0, 8)}-`);
     await fs.mkdir(targetDir, { recursive: true });
 
-    const gateway = this.config.ipfs.gateway.replace(/\/$/, "");
-    const url = `${gateway}/ipfs/${cid}`;
-    const response = await fetch(url, { redirect: "follow" });
-    if (!response.ok) {
+    // Public gateways fail often (congestion, cold pins), so try the
+    // configured one first and fall back through the rest before giving up.
+    const configured = this.config.ipfs.gateway.replace(/\/$/, "");
+    const gateways = [configured, ...FALLBACK_GATEWAYS.filter((g) => g !== configured)];
+
+    let bytes: Uint8Array | undefined;
+    const failures: string[] = [];
+    for (const gateway of gateways) {
+      const url = `${gateway}/ipfs/${cid}`;
+      try {
+        const response = await fetch(url, {
+          redirect: "follow",
+          signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+        });
+        if (!response.ok) {
+          failures.push(`${gateway} -> ${response.status} ${response.statusText}`);
+          continue;
+        }
+        bytes = new Uint8Array(await response.arrayBuffer());
+        break;
+      } catch (err) {
+        failures.push(`${gateway} -> ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    if (!bytes) {
       throw new Error(
-        `IPFS download failed: ${response.status} ${response.statusText} (${url})`,
+        `IPFS download failed for ${cid}. Tried ${gateways.length} gateway(s):\n  ` +
+          `${failures.join("\n  ")}\nSet a working gateway with OGZK_IPFS_GATEWAY ` +
+          "(or `0gzk config set ipfsGateway <url>`).",
       );
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
 
     const tarPath = path.join(targetDir, TAR_NAME);
     await fs.writeFile(tarPath, bytes);
