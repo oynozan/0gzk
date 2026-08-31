@@ -19,6 +19,25 @@ Direct browser fetches against storage indexers may hit **missing CORS** headers
 
 **snarkjs** can leave worker threads alive. The CLI intentionally calls **`process.exit`** when the command finishes so your terminal is not stuck. This is expected.
 
+## `Cannot find module @rollup/rollup-linux-x64-gnu` (or `@esbuild/linux-x64`)
+
+You installed dependencies from **Windows** and then ran the tests from **WSL** (or the reverse). One `node_modules` is being shared by two operating systems, and `rollup`, `esbuild`, and `next-swc` each ship a platform-specific native binary — the install only fetched the one for the OS that ran it.
+
+This repo tells pnpm to fetch both, via `supportedArchitectures` in the root `package.json`:
+
+```json
+"pnpm": {
+  "supportedArchitectures": {
+    "os": ["current", "win32", "linux"],
+    "cpu": ["current", "x64"]
+  }
+}
+```
+
+If you still hit it, run `pnpm install` from the repo root once; the binaries for both platforms land in `node_modules`, and `pnpm test` then works from PowerShell, git-bash, **and** WSL.
+
+Note that `node` inside WSL is usually provided by `nvm`, which only initialises for **interactive** shells — `wsl -e bash -c "..."` reports `node: command not found` while `wsl -e bash -ic "..."` works.
+
 ## `examples/` folder looks empty
 
 The **`examples/`** directory ships directly in the repo — a plain `git clone` brings it in. If it looks empty, you are likely on a stale checkout; run `git pull`. Then follow any example README.
