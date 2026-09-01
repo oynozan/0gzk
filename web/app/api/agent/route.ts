@@ -5,8 +5,11 @@ import { runAgentTurn, type ChatMessage } from "@/lib/server/agent";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_MESSAGES = 40;
+const MAX_MESSAGES = 80;
 const MAX_MESSAGE_LENGTH = 4000;
+/** Tool results carry schemas and public signals, so they get more room. */
+const MAX_TOOL_RESULT_LENGTH = 20_000;
+const MAX_TOOL_CALLS = 8;
 
 function validate(body: unknown): ChatMessage[] | null {
   if (!body || typeof body !== "object") return null;
@@ -17,14 +20,44 @@ function validate(body: unknown): ChatMessage[] | null {
   const out: ChatMessage[] = [];
   for (const entry of messages) {
     if (!entry || typeof entry !== "object") return null;
-    const { role, content } = entry as { role?: unknown; content?: unknown };
+    const { role, content, tool_calls, tool_call_id } = entry as {
+      role?: unknown;
+      content?: unknown;
+      tool_calls?: unknown;
+      tool_call_id?: unknown;
+    };
+
+    // Results of tools the CLI ran locally (proving, local files).
+    if (role === "tool") {
+      if (typeof tool_call_id !== "string" || typeof content !== "string") return null;
+      if (content.length > MAX_TOOL_RESULT_LENGTH) return null;
+      out.push({ role, tool_call_id, content });
+      continue;
+    }
+
     if (role !== "user" && role !== "assistant") return null;
+
+    // Assistant turn that requested tools: content may be null/empty.
+    if (role === "assistant" && Array.isArray(tool_calls)) {
+      if (tool_calls.length > MAX_TOOL_CALLS) return null;
+      out.push({
+        role,
+        content: typeof content === "string" ? content : null,
+        tool_calls,
+      });
+      continue;
+    }
+
     if (typeof content !== "string" || content.length === 0 || content.length > MAX_MESSAGE_LENGTH) {
       return null;
     }
     out.push({ role, content });
   }
-  if (out[out.length - 1]!.role !== "user") return null;
+
+  // Each request must be driven by something new: a user turn, or the results
+  // of tools the CLI just ran.
+  const last = out[out.length - 1]!;
+  if (last.role !== "user" && last.role !== "tool") return null;
   return out;
 }
 
@@ -41,8 +74,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Expected { messages: [{ role: 'user' | 'assistant', content: string }, ...] } " +
-          `(at most ${MAX_MESSAGES} messages of ${MAX_MESSAGE_LENGTH} chars, ending with a user message)`,
+          "Expected { messages: [...] } of user/assistant/tool turns " +
+          `(at most ${MAX_MESSAGES} messages of ${MAX_MESSAGE_LENGTH} chars, ending with a user ` +
+          "message or the results of client-side tool calls)",
       },
       { status: 400 },
     );

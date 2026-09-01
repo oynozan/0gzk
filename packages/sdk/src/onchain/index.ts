@@ -50,14 +50,14 @@ export interface ResolveOptions {
  * implementing `call`, ...). Caller-supplied `address` always wins over the
  * built-in mapping.
  *
- * `chainId` defaults to 16661 (0G mainnet) for backwards compatibility —
+ * `chainId` defaults to 8453 (Base mainnet, the default network) —
  * multi-chain callers should always pass it explicitly (see
  * `REGISTRY_ADDRESSES` for the known chains).
  */
 export function getRegistryContract(
   runner: ContractRunner,
   address?: string,
-  chainId = 16661,
+  chainId = 8453,
 ): Contract {
   const resolved = address ?? getRegistryAddress(chainId);
   if (!resolved) {

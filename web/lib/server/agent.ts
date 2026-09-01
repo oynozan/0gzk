@@ -2,9 +2,17 @@ import "server-only";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
-import { buildMcpServer, discoveryToolDefs, type ServerContext, type Catalog } from "@0gzk/mcp";
+import {
+  buildMcpServer,
+  clientToolDefs,
+  discoveryToolDefs,
+  CLIENT_TOOL_NAMES,
+  type ServerContext,
+  type Catalog,
+} from "@0gzk/mcp";
 
 import catalogJson from "../../../circuits/index.json";
 
@@ -63,8 +71,27 @@ async function getMcpClient(): Promise<Client> {
 }
 
 const SYSTEM_PROMPT = [
-  "You are the 0gzk assistant: an expert guide to the 0gzk zero-knowledge circuit platform.",
-  "Users are developers looking for the right ZK circuit, or trying to use one.",
+  "You are the 0gzk agent. You do not just advise — you DO the work: find the right",
+  "circuit, collect the user's values, validate them, generate the proof, and save it.",
+  "",
+  "## How to run a job",
+  "1. Find the circuit with search_circuits / get_circuit if it is not already obvious.",
+  "2. Show the user the exact inputs it needs (validate_inputs with no inputs returns the",
+  "   schema) and ASK for any values you do not have. Name each signal, its type, and",
+  "   whether it is public or private.",
+  "3. When the user gives values — or points at a JSON file — call validate_inputs first.",
+  "   If it reports errors, explain them in plain language and ask for corrections.",
+  "4. Once valid, CALL prove_circuit. Do not tell the user to run a command themselves;",
+  "   running it is your job. Pass outDir so the artifacts are saved (default './proof').",
+  "   If the user referenced a file, pass inputFile instead of inputs.",
+  "5. Report the outcome: verified true/false, the public signals and what they mean,",
+  "   and where the files were written.",
+  "",
+  "validate_inputs, read_input_file and prove_circuit run on the USER's machine, not on",
+  "the server — private inputs never leave their device. Never ask a user to paste a",
+  "secret you do not need, and never repeat their private values back to them.",
+  "",
+  "If a user just asks a question, answer it. Only start the job flow when they want a proof.",
   "",
   "0gzk in one breath: Circom circuits compiled to Groth16 (bn128, snarkjs) ship as",
   "content-addressed bundles on decentralized storage (0G Storage or IPFS); an on-chain",
@@ -73,11 +100,11 @@ const SYSTEM_PROMPT = [
   "",
   "Rules:",
   "- ALWAYS call search_circuits before saying no circuit fits a need.",
-  "- Use get_circuit for exact input/output schemas and a ready-to-run prove command.",
-  "- Never invent rootHashes, addresses, or versions — resolve them with resolve_circuit.",
-  "- Answer concretely: name the circuit, show the command, cite the chain.",
-  "- To author new circuits, point users at `0gzk agent` inside a repo checkout,",
-  "  or the scaffold/build tools of the @0gzk/mcp server.",
+  "- Never invent rootHashes, addresses, versions, or public signals — resolve or compute them.",
+  "- Default chain is Base; say so if it matters, and use 0g-mainnet only when asked.",
+  "- Be concise. Ask for missing values in one short list rather than one at a time.",
+  "- To author NEW circuits (scaffold/compile), point users at `0gzk agent --local`",
+  "  inside a repo checkout, or the @0gzk/mcp server in their editor.",
   "",
   "Available circuits: " + catalog.circuits.map((c) => c.name).join(", "),
 ].join("\n");
@@ -88,16 +115,33 @@ export interface AgentTraceEntry {
   summary: string;
 }
 
+export interface ClientToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 export interface AgentTurnResult {
+  /** false when the CLI must run `clientToolCalls` and post the results back. */
+  done: boolean;
   reply: string;
   trace: AgentTraceEntry[];
   model: string;
+  /** Tools the CLI must execute locally (proving, local files). */
+  clientToolCalls?: ClientToolCall[];
+  /** Conversation so far, echoed so the endpoint stays stateless. */
+  messages?: Array<Record<string, unknown>>;
 }
 
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+/**
+ * Wire format. Beyond plain user/assistant turns the CLI also replays the
+ * assistant tool-call messages and its own local tool results, so the server
+ * needs no session state.
+ */
+export type ChatMessage =
+  | { role: "user" | "assistant"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls: unknown[] }
+  | { role: "tool"; tool_call_id: string; content: string };
 
 interface OpenAiToolCall {
   id: string;
@@ -115,7 +159,7 @@ interface OpenAiChoiceMessage {
  */
 async function openAiTools(client: Client) {
   const { tools } = await client.listTools();
-  return tools.map((tool) => ({
+  const served = tools.map((tool) => ({
     type: "function" as const,
     function: {
       name: tool.name,
@@ -123,6 +167,20 @@ async function openAiTools(client: Client) {
       parameters: tool.inputSchema as Record<string, unknown>,
     },
   }));
+
+  // Client-side tools are declared to the model but never executed here: the
+  // CLI runs them so the witness stays on the user's machine.
+  const delegated = clientToolDefs.map((def) => ({
+    type: "function" as const,
+    function: {
+      name: def.name,
+      description: def.description,
+      parameters: z.toJSONSchema(z.object(def.schema)) as Record<string, unknown>,
+    },
+  }));
+
+  const servedNames = new Set(served.map((t) => t.function.name));
+  return [...served, ...delegated.filter((t) => !servedNames.has(t.function.name))];
 }
 
 /** Execute one tool over MCP and flatten its content blocks to text. */
@@ -203,7 +261,7 @@ export async function runAgentTurn(history: ChatMessage[]): Promise<AgentTurnRes
     const message = await callOpenAi(apiKey, messages, tools);
 
     if (!message.tool_calls?.length) {
-      return { reply: message.content ?? "", trace, model: MODEL };
+      return { done: true, reply: message.content ?? "", trace, model: MODEL };
     }
 
     messages.push({
@@ -211,6 +269,37 @@ export async function runAgentTurn(history: ChatMessage[]): Promise<AgentTurnRes
       content: message.content,
       tool_calls: message.tool_calls,
     });
+
+    // If the model wants anything that touches the user's machine, hand the
+    // whole batch back: the CLI executes it and posts the results to continue.
+    const delegated = message.tool_calls.filter((c) => CLIENT_TOOL_NAMES.includes(c.function.name));
+    if (delegated.length > 0) {
+      // Server-side calls in the same batch still run here, so the CLI only
+      // ever has to handle the local ones.
+      for (const call of message.tool_calls) {
+        if (CLIENT_TOOL_NAMES.includes(call.function.name)) continue;
+        const resultText = await callMcpTool(client, call.function.name, call.function.arguments);
+        trace.push({
+          tool: call.function.name,
+          args: firstLine(call.function.arguments ?? "", 90),
+          summary: firstLine(resultText),
+        });
+        messages.push({ role: "tool", tool_call_id: call.id, content: resultText });
+      }
+      return {
+        done: false,
+        reply: message.content ?? "",
+        trace,
+        model: MODEL,
+        clientToolCalls: delegated.map((c) => ({
+          id: c.id,
+          name: c.function.name,
+          arguments: c.function.arguments,
+        })),
+        // Drop the system prompt: the next request re-adds it.
+        messages: messages.slice(1),
+      };
+    }
 
     for (const call of message.tool_calls) {
       const resultText = await callMcpTool(client, call.function.name, call.function.arguments);
@@ -224,6 +313,7 @@ export async function runAgentTurn(history: ChatMessage[]): Promise<AgentTurnRes
   }
 
   return {
+    done: true,
     reply: "I hit the tool budget for this question — try narrowing it down.",
     trace,
     model: MODEL,

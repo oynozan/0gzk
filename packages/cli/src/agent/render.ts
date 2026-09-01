@@ -195,18 +195,47 @@ export class AgentRenderer {
 
 const BOX = { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" };
 
-/** Claude Code-style welcome banner. */
-export function renderBanner(rows: Array<[string, string]>, width = 58): void {
+/**
+ * Scroll the viewport so a fresh session starts at the top of the terminal
+ * instead of wherever the previous command left the cursor.
+ */
+export function scrollToBottom(): void {
+  if (!process.stdout.isTTY) return;
+  // Clear + home: everything above stays in scrollback.
+  process.stdout.write("\x1b[2J\x1b[H");
+}
+
+/**
+ * Welcome banner: a titled box with aligned key/value rows and a tagline.
+ */
+export function renderBanner(
+  rows: Array<[string, string]>,
+  opts: { tagline?: string; width?: number } = {},
+): void {
+  const width = opts.width ?? Math.min(72, Math.max(52, (process.stdout.columns ?? 80) - 2));
   const inner = width - 2;
   const line = (content: string, visibleLength: number): string =>
     `${chalk.dim(BOX.v)} ${content}${" ".repeat(Math.max(0, inner - visibleLength - 1))}${chalk.dim(BOX.v)}`;
 
-  console.log(chalk.dim(BOX.tl + BOX.h.repeat(inner) + BOX.tr));
-  console.log(line(`${chalk.magentaBright("✳")} ${chalk.bold("0gzk agent")}`, 12));
-  console.log(line("", 0));
+  // Title sits in the top rule: ╭─ ✳ 0gzk agent ────╮
+  const title = `${chalk.magentaBright("✳")} ${chalk.bold("0gzk")} ${chalk.dim("agent")}`;
+  const titleLen = stripAnsiLength(title);
+  console.log(
+    chalk.dim(BOX.tl + BOX.h.repeat(2)) +
+      ` ${title} ` +
+      chalk.dim(BOX.h.repeat(Math.max(0, inner - titleLen - 4)) + BOX.tr),
+  );
+
+  if (opts.tagline) {
+    console.log(line(chalk.dim(opts.tagline), stripAnsiLength(opts.tagline)));
+    console.log(line("", 0));
+  }
+
+  const labelWidth = rows.reduce((max, [label]) => Math.max(max, label.length), 0);
   for (const [label, value] of rows) {
-    const text = `${chalk.dim(`${label}:`)} ${value}`;
-    console.log(line(text, label.length + 2 + stripAnsiLength(value)));
+    const padded = label.padEnd(labelWidth);
+    const text = `${chalk.dim(padded)}  ${value}`;
+    console.log(line(text, labelWidth + 2 + stripAnsiLength(value)));
   }
   console.log(chalk.dim(BOX.bl + BOX.h.repeat(inner) + BOX.br));
 }

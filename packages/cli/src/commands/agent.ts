@@ -3,12 +3,13 @@ import { stdin, stdout } from "node:process";
 
 import chalk from "chalk";
 
-import { renderBanner } from "../agent/render.js";
+import { renderBanner, scrollToBottom } from "../agent/render.js";
 import {
   resolveAgentUrl,
   runRemoteTurn,
   type RemoteChatMessage,
 } from "../agent/remote.js";
+import { loadConfig } from "@0gzk/sdk/node";
 
 export interface AgentOptions {
   model?: string;
@@ -32,12 +33,24 @@ export async function runAgent(promptWords: string[], opts: AgentOptions = {}): 
   }
 
   const url = resolveAgentUrl();
-  renderBanner([
-    ["model", chalk.cyan("gpt-5-nano") + chalk.dim(" (hosted)")],
-    ["server", new URL(url).host],
-    ["tools", `5 discovery tools ${chalk.dim("(run server-side)")}`],
-    ["auth", chalk.green("none needed")],
-  ]);
+  const network = (() => {
+    try {
+      return loadConfig({}).network;
+    } catch {
+      return "base";
+    }
+  })();
+
+  scrollToBottom();
+  renderBanner(
+    [
+      ["model", chalk.cyan("gpt-5-nano") + chalk.dim("  hosted, no API key")],
+      ["network", chalk.cyan(network) + chalk.dim("  registry + bundles")],
+      ["proving", chalk.green("on this machine") + chalk.dim("  witness never uploaded")],
+      ["server", chalk.dim(new URL(url).host)],
+    ],
+    { tagline: "Find a circuit, hand me your values, get a proof." },
+  );
   console.log();
 
   const history: RemoteChatMessage[] = [];
@@ -52,7 +65,9 @@ export async function runAgent(promptWords: string[], opts: AgentOptions = {}): 
   }
 
   // Interactive chat with local history.
-  console.log(chalk.dim("  Ask about circuits in plain language. exit/quit or Ctrl+D to leave.\n"));
+  console.log(
+    chalk.dim('  Try: "prove I am over 18, I was born in 1990". exit/quit or Ctrl+D to leave.\n'),
+  );
   const rl = readline.createInterface({ input: stdin, output: stdout });
   try {
     for (;;) {
@@ -67,12 +82,15 @@ export async function runAgent(promptWords: string[], opts: AgentOptions = {}): 
       if (trimmed === "exit" || trimmed === "quit" || trimmed === "/exit") break;
 
       console.log();
+      const restore = [...history];
       history.push({ role: "user", content: trimmed });
       try {
-        const reply = await runRemoteTurn(url, history);
-        history.push({ role: "assistant", content: reply });
+        // runRemoteTurn rewrites `history` in place with the full transcript
+        // (assistant tool calls and local tool results included).
+        await runRemoteTurn(url, history);
       } catch (err) {
-        history.pop(); // keep history consistent after a failed turn
+        history.length = 0;
+        history.push(...restore); // keep history consistent after a failed turn
         console.error(chalk.red(`error: ${err instanceof Error ? err.message : String(err)}`));
       }
       console.log();

@@ -21,7 +21,9 @@ export * from "./catalog/index.js";
 export {
   allToolDefs,
   authoringToolDefs,
+  clientToolDefs,
   discoveryToolDefs,
+  CLIENT_TOOL_NAMES,
   type ToolDef,
   type ToolResult,
 } from "./tools/index.js";

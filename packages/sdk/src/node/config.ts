@@ -74,7 +74,7 @@ export function loadConfig(overrides: Partial<StorageConfig> = {}): StorageConfi
   const networkInput = overrides.network ?? env.OGZK_NETWORK ?? env.OG_NETWORK;
   const network: Network =
     networkInput === undefined
-      ? "0g-mainnet"
+      ? "base"
       : resolveNetworkOrThrow(
           networkInput,
           overrides.network

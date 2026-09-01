@@ -14,7 +14,7 @@ function preset() {
   const name =
     resolveNetwork(
       process.env.NEXT_PUBLIC_OGZK_NETWORK ?? process.env.NEXT_PUBLIC_OG_NETWORK,
-    ) ?? "0g-mainnet";
+    ) ?? "base";
   return NETWORKS[name];
 }
 

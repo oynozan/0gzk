@@ -81,7 +81,7 @@ export const searchCircuitsTool = defineTool({
     }
 
     // Discovery mode: the registry only stores names, so this is a name match.
-    const chain = args.chain ?? "0g-mainnet";
+    const chain = args.chain ?? "base";
     try {
       const registry = getRegistry(chain);
       const summaries = [];
@@ -128,7 +128,7 @@ export const listCircuitsTool = defineTool({
   readOnly: true,
   schema: {
     source: z.enum(["catalog", "registry"]).optional().describe("Defaults to catalog; falls back to registry when no catalog is available"),
-    chain: chainSchema.default("0g-mainnet").describe("Registry chain (source=registry)"),
+    chain: chainSchema.default("base").describe("Registry chain (source=registry)"),
     offset: z.number().int().min(0).default(0),
     limit: z.number().int().min(1).max(200).default(50),
   },
@@ -195,7 +195,7 @@ export const getCircuitTool = defineTool({
       );
     }
 
-    const chain = args.chain ?? "0g-mainnet";
+    const chain = args.chain ?? "base";
     try {
       const registry = getRegistry(chain);
       let version: string;

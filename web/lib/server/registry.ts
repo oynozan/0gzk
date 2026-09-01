@@ -14,7 +14,7 @@ import {
 
 function networkPreset() {
   const name =
-    resolveNetwork(process.env.OGZK_NETWORK ?? process.env.OG_NETWORK) ?? "0g-mainnet";
+    resolveNetwork(process.env.OGZK_NETWORK ?? process.env.OG_NETWORK) ?? "base";
   return NETWORKS[name];
 }
 

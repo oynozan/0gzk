@@ -32,14 +32,22 @@ afterEach(() => {
 });
 
 describe("loadConfig", () => {
-  it("defaults to 0g-mainnet with the 0g backend", () => {
+  it("defaults to Base mainnet with the ipfs backend", () => {
     const config = loadConfig();
-    expect(config.network).toBe("0g-mainnet");
+    expect(config.network).toBe("base");
+    expect(config.chainId).toBe(8453);
+    expect(config.rpcUrl).toBe("https://mainnet.base.org");
+    expect(config.storage).toBe("ipfs");
+    // Still resolvable for the 0G backend, but unused while storage is ipfs.
+    expect(config.storageNetwork).toBe("0g-mainnet");
+  });
+
+  it("switches back to 0G on request", () => {
+    const config = loadConfig({ network: "0g-mainnet" });
     expect(config.chainId).toBe(16661);
     expect(config.rpcUrl).toBe("https://evmrpc.0g.ai");
     expect(config.indexerUrl).toBe("https://indexer-storage-turbo.0g.ai");
     expect(config.storage).toBe("0g");
-    expect(config.storageNetwork).toBe("0g-mainnet");
   });
 
   it("accepts deprecated aliases from OG_NETWORK", () => {

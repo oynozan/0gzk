@@ -10,6 +10,7 @@ import { resolveContext, type ServerContext } from "../src/context.js";
 import { buildCircuitTool, validateMetadataTool } from "../src/tools/authoring.js";
 import type { ToolResult } from "../src/tools/defs.js";
 import { getCircuitTool, getExampleInputTool } from "../src/tools/discovery.js";
+import { validateInputsTool } from "../src/tools/inputs.js";
 import { scaffoldCircuitTool } from "../src/tools/templates.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -26,11 +27,12 @@ describe("discovery tools over the real repo catalog", () => {
     ctx = await resolveContext({ repoRoot });
   });
 
-  it("resolves the context into repo mode with all 9 tools", () => {
+  it("resolves the context into repo mode with all 11 tools", () => {
     expect(ctx.mode).toBe("repo");
     expect(ctx.catalog).not.toBeNull();
-    expect(ctx.toolNames).toHaveLength(9);
+    expect(ctx.toolNames).toHaveLength(11);
     expect(ctx.toolNames).toContain("search_circuits");
+    expect(ctx.toolNames).toContain("validate_inputs");
     expect(ctx.toolNames).toContain("prove_circuit");
   });
 
@@ -224,5 +226,45 @@ describe("scaffold_circuit into a temp repo", () => {
   it("build_circuit requires exactly one of name / dir", async () => {
     const result = await buildCircuitTool.handler(ctx, {});
     expect(result.isError).toBe(true);
+  });
+});
+
+describe("validate_inputs", () => {
+  let ctx: ServerContext;
+  beforeAll(async () => {
+    ctx = await resolveContext({ repoRoot });
+  });
+
+  it("returns the signal schema when no inputs are supplied", async () => {
+    const result = await validateInputsTool.handler(ctx, { name: "age_verification", inputs: {} });
+    const payload = JSON.parse(result.content[0]!.text) as {
+      valid: boolean;
+      missing: string[];
+      schema: { inputs: Array<{ name: string; visibility: string }> };
+    };
+    expect(payload.valid).toBe(false);
+    expect(payload.missing).toContain("birthYear");
+    const birthYear = payload.schema.inputs.find((i) => i.name === "birthYear");
+    expect(birthYear?.visibility).toBe("private");
+  });
+
+  it("accepts valid inputs", async () => {
+    const result = await validateInputsTool.handler(ctx, {
+      name: "age_verification",
+      inputs: { birthYear: 1990, currentYear: 2026, minAge: 18 },
+    });
+    const payload = JSON.parse(result.content[0]!.text) as { valid: boolean; errors: string[] };
+    expect(payload.valid).toBe(true);
+    expect(payload.errors).toEqual([]);
+  });
+
+  it("names the offending signal without echoing secret values", async () => {
+    const result = await validateInputsTool.handler(ctx, {
+      name: "age_verification",
+      inputs: { birthYear: "not-a-number", currentYear: 2026, minAge: 18 },
+    });
+    const payload = JSON.parse(result.content[0]!.text) as { valid: boolean; errors: string[] };
+    expect(payload.valid).toBe(false);
+    expect(payload.errors.join(" ")).toContain("birthYear");
   });
 });
