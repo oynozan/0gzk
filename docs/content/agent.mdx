@@ -136,7 +136,7 @@ The authoring tools (`scaffold_circuit`, `build_circuit`, `validate_metadata`) a
 
 ## Artifacts
 
-`prove_circuit` writes when it is given an `outDir` (the agent passes one on every proving run; **`./proof`** is its default). A relative path resolves against the repo root when the CLI is inside a checkout, otherwise the current directory. The directory is created if missing.
+`prove_circuit` always writes its artifacts. With no `outDir` they go to **`~/.0gzk/proofs/<circuit>-<timestamp>/`** (override the root with `OGZK_PROOFS_DIR`); an explicit `outDir` is used as given, resolving relative paths against the current directory. The directory is created if missing, and the tool returns the **absolute** path as `saved.outDir` — which the agent quotes back to you verbatim, so you never have to guess where a proof landed.
 
 | File | Content |
 | --- | --- |

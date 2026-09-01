@@ -4,6 +4,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { generateProof, verifyLocal, type BundleFiles } from "@0gzk/sdk";
@@ -19,6 +20,21 @@ import { defineTool, errorMessage, errorResult, jsonResult } from "./defs.js";
 
 const chainSchema = z.enum(CHAIN_SLUGS);
 const REGISTRY_TIMEOUT_MS = 10_000;
+
+/** Where proofs land when the caller does not choose: ~/.0gzk/proofs. */
+export function defaultProofsDir(): string {
+  return process.env.OGZK_PROOFS_DIR ?? path.join(os.homedir(), ".0gzk", "proofs");
+}
+
+/** Sortable, filename-safe stamp: 20260901-213645. */
+function proofStamp(): string {
+  const d = new Date();
+  const p = (n: number, w = 2): string => String(n).padStart(w, "0");
+  return (
+    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+    `-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+  );
+}
 
 async function pathExists(p: string): Promise<boolean> {
   try {
@@ -210,7 +226,10 @@ export const proveCircuitTool = defineTool({
     outDir: z
       .string()
       .optional()
-      .describe("Directory to write proof.json, public.json and result.json into (created if missing)"),
+      .describe(
+        "Directory for proof.json, public.json and result.json. Defaults to " +
+          "~/.0gzk/proofs/<circuit>-<timestamp>/. The absolute path is always returned as saved.outDir.",
+      ),
   },
   handler: async (ctx, args) => {
     const sources = [args.name, args.bundleDir, args.rootHash].filter((s) => s !== undefined);
@@ -273,11 +292,17 @@ export const proveCircuitTool = defineTool({
       const durationMs = Math.round(performance.now() - startedAt);
       const verified = args.verify ? await verifyLocal(bundle, result) : undefined;
 
+      // Artifacts are always written somewhere predictable: a bare
+      // "./proof" is ambiguous over ssh/WSL, so the default lives under the
+      // user's own 0gzk directory and the absolute path is always reported.
       let saved: { outDir: string; files: string[] } | undefined;
-      if (args.outDir !== undefined) {
-        const dir = path.isAbsolute(args.outDir)
-          ? args.outDir
-          : path.resolve(ctx.repoRoot ?? process.cwd(), args.outDir);
+      {
+        const dir =
+          args.outDir === undefined
+            ? path.join(defaultProofsDir(), `${bundle.metadata.name}-${proofStamp()}`)
+            : path.isAbsolute(args.outDir)
+              ? args.outDir
+              : path.resolve(process.cwd(), args.outDir);
         await mkdir(dir, { recursive: true });
         const summary = {
           circuit: {

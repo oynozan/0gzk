@@ -273,6 +273,7 @@ The full matrix read by **`loadConfig`** (SDK) and the CLI. Per field the order 
 | **`OGZK_IPFS_GATEWAY`** | — | HTTP gateway for IPFS fetches (ipfs.io / dweb.link / w3s.link are tried as fallbacks). | `https://gateway.pinata.cloud` |
 | **`OGZK_REGISTRY_ADDRESS`** | — | Override the `CircuitRegistry` address (wins over the baked-in map; all four chains have a baked-in entry). | baked-in map |
 | **`OGZK_CACHE_DIR`** | — | CLI bundle cache root. | `~/.0gzk/bundles` |
+| **`OGZK_PROOFS_DIR`** | — | Where `prove_circuit` writes proofs when no `outDir` is given. | `~/.0gzk/proofs` |
 | **`OGZK_CONFIG_DIR`** | — | CLI config directory. | `~/.0gzk` |
 | **`OGZK_AGENT_URL`** | — | Hosted [`0gzk agent`](/agent) endpoint the CLI posts to. | `https://0gzk.com/api/agent` |
 | **`ANTHROPIC_API_KEY`** | — | Auth for `0gzk agent --local` (falls back to a Claude Code login). | unset |
