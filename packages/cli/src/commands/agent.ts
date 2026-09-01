@@ -10,6 +10,7 @@ import {
   type RemoteChatMessage,
 } from "../agent/remote.js";
 import { loadConfig } from "@0gzk/sdk/node";
+import { envWasSetByShell } from "../config-store.js";
 
 export interface AgentOptions {
   model?: string;
@@ -41,11 +42,21 @@ export async function runAgent(promptWords: string[], opts: AgentOptions = {}): 
     }
   })();
 
+  // Where that network came from. An exported OG_NETWORK silently overriding
+  // the default is confusing enough to be worth one word in the banner.
+  const networkSource = (() => {
+    if (process.env.OGZK_NETWORK) return "OGZK_NETWORK";
+    if (process.env.OG_NETWORK) {
+      return envWasSetByShell("OG_NETWORK") ? "env OG_NETWORK" : "config";
+    }
+    return "default";
+  })();
+
   scrollToBottom();
   renderBanner(
     [
       ["model", chalk.cyan("gpt-5-nano") + chalk.dim("  hosted, no API key")],
-      ["network", chalk.cyan(network) + chalk.dim("  registry + bundles")],
+      ["network", chalk.cyan(network) + chalk.dim(`  from ${networkSource}`)],
       ["proving", chalk.green("on this machine") + chalk.dim("  witness never uploaded")],
       ["server", chalk.dim(new URL(url).host)],
     ],
