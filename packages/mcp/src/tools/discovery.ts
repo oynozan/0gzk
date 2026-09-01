@@ -172,7 +172,7 @@ export const getCircuitTool = defineTool({
   schema: {
     name: z.string().min(1),
     version: z.string().optional().describe("Registry version (defaults to latest)"),
-    chain: chainSchema.optional().describe("Registry chain for non-catalog circuits (default 0g-mainnet)"),
+    chain: chainSchema.optional().describe("Registry chain for non-catalog circuits (default base)"),
     includeExampleInput: z.boolean().default(true),
     fetchIfMissing: z.boolean().default(true).describe("Allow downloading the published bundle when the circuit is not in the catalog"),
   },

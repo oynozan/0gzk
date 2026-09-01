@@ -10,7 +10,7 @@ import { AgentRenderer, renderBanner } from "./render.js";
 import type { AgentOptions } from "../commands/agent.js";
 
 /**
- * `0gzk agent --local`: Claude Agent SDK in-process with the full 9-tool set
+ * `0gzk agent --local`: Claude Agent SDK in-process with the full tool set
  * (discovery + authoring). Needs ANTHROPIC_API_KEY or a Claude Code login.
  */
 export async function runLocalAgent(promptWords: string[], opts: AgentOptions): Promise<void> {

@@ -6,31 +6,33 @@ import { Command, Term } from "@/components/CommandRow";
 export const metadata: Metadata = {
   title: "AI · 0gzk",
   description:
-    "The 0gzk AI surface: a terminal agent that discovers and authors ZK circuits, and an MCP server that plugs the circuit catalog into Claude Code, Claude Desktop, and Cursor.",
+    "The 0gzk AI surface: a terminal agent that finds a ZK circuit, takes your values, and generates the proof on your machine — plus an MCP server that plugs the circuit catalog into Claude Code, Claude Desktop, and Cursor.",
 };
 
-const SAMPLE_SESSION = `$ 0gzk agent "which circuit proves someone is over 18?"
+const SAMPLE_SESSION = `$ 0gzk agent "prove I'm over 18 — born 1990, it's 2026"
 
-╭──────────────────────────────────────────╮
-│ ✳ 0gzk agent                             │
-│                                          │
-│ model: gpt-5-nano (hosted)               │
-│ tools: 5 discovery tools                 │
-│ auth: none needed                        │
-╰──────────────────────────────────────────╯
+╭── ✳ 0gzk agent ──────────────────────────────────╮
+│ Find a circuit, hand me your values, get a proof.│
+│                                                  │
+│ model    gpt-5-nano  hosted, no API key          │
+│ network  base  registry + bundles                │
+│ proving  on this machine  witness never uploaded │
+╰──────────────────────────────────────────────────╯
 
 ⏺ search_circuits({"query":"prove age over 18"})
   ⎿ age_verification (score 21) …
-⏺ get_circuit({"name":"age_verification"})
-  ⎿ { "source": "catalog", "inputs": { "birthYear": … } }
+⏺ validate_inputs({"name":"age_verification", …})  · local
+  ⎿ { "valid": true, "errors": [] }
+⏺ prove_circuit({"name":"age_verification","outDir":"./proof"})  · local
+  ⎿ { "verified": true, "publicSignals": ["1","2026","18"] }
 
-Use age_verification: private birthYear, public currentYear
-and minAge, public isAdult output. Prove it with:
+Proved with age_verification@0.1.0. isAdult = 1 (you are over 18),
+for currentYear 2026 and minAge 18. birthYear stayed on your machine.
 
-  0gzk prove --name age_verification input.json
+Saved to ./proof — proof.json, public.json, result.json
 
 ────────────────────────────────────────
-gpt-5-nano · 6.2s`;
+gpt-5-nano · 12.4s`;
 
 const MCP_JSON = `{
   "mcpServers": {
@@ -54,9 +56,9 @@ export default function AiPage() {
           maxWidth: "62ch",
         }}
       >
-        Ask for a proof in plain language. The agent finds the circuit, shows its
-        schema, and proves it — or scaffolds a new one. The same nine tools plug
-        into any MCP client.
+        Ask for a proof in plain language. The agent finds the circuit, asks for the
+        values it needs, validates them, generates the proof on your machine, and saves
+        the artifacts. The same tools plug into any MCP client.
       </p>
 
       <Block title="INSTALL" index="§ 01">
@@ -68,7 +70,18 @@ export default function AiPage() {
       <Block title="AGENT" index="§ 02">
         <Row
           label="WHAT"
-          value="a terminal chat assistant that knows every published circuit: search, schemas, example inputs, live registry records on 0G and Base"
+          value="a terminal agent that runs the whole job: finds the circuit, asks for your inputs, validates them against the signal schema, generates the Groth16 proof, and writes proof.json / public.json / result.json"
+        />
+        <Row
+          label="PRIVACY"
+          value={
+            <span>
+              proving runs <strong>on your machine</strong> — the hosted model decides{" "}
+              <em>what</em> to run, your CLI executes it. Private inputs are never sent
+              to the server
+            </span>
+          }
+          unit="witness stays local"
         />
         <Row
           label="AUTH"
@@ -121,14 +134,16 @@ export default function AiPage() {
         <Row label="get_circuit" tag="PUB" value="full schema + example input + a ready-to-run prove recipe" />
         <Row label="get_example_input" tag="PUB" value="a working input JSON for any reference circuit" />
         <Row label="resolve_circuit" tag="PUB" value="name@version → per-chain registry records" />
+        <Row label="validate_inputs" tag="OUT" value="check your values against the signal schema, or fetch the schema to fill in" />
+        <Row label="read_input_file" tag="OUT" value="load a local JSON input file — returns signal names only, never values" />
+        <Row label="prove_circuit" tag="OUT" value="generate + verify a Groth16 proof and write the artifacts to disk" />
         <Row label="scaffold_circuit" tag="PRV" value="create a typed .circom skeleton + metadata + build script" />
         <Row label="validate_metadata" tag="PRV" value="schema-check a metadata.json, with discovery-field warnings" />
         <Row label="build_circuit" tag="PRV" value="circom compile + trusted setup into a publishable bundle" />
-        <Row label="prove_circuit" tag="PRV" value="generate and verify a Groth16 proof for any bundle" />
         <Row
           label="MODES"
-          value="[PUB] discovery tools work anywhere against the live registries; [PRV] authoring tools switch on inside a repo checkout"
-          unit="repo · discovery"
+          value="[PUB] read-only discovery, safe to run anywhere — the hosted agent runs these server-side. [OUT] touches your machine, so the hosted agent delegates them to your CLI. [PRV] authoring, inside a repo checkout"
+          unit="11 repo · 8 standalone"
         />
       </Block>
 

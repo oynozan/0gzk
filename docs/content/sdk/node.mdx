@@ -68,24 +68,27 @@ Merges **`overrides`** with environment variables, falling back to network prese
 
 | Field | Env vars (first wins) | Default |
 | --- | --- | --- |
-| **`network`** | **`OGZK_NETWORK`**, **`OG_NETWORK`** (canonical name or alias; unknown values **throw**) | **`0g-mainnet`** |
-| **`rpcUrl`** | **`OGZK_RPC_URL`**, **`OG_RPC_URL`** | preset RPC for **`network`** |
+| **`network`** | **`OGZK_NETWORK`**, **`OG_NETWORK`** (canonical name or alias; unknown values **throw**) | **`base`** |
+| **`rpcUrl`** | **`OGZK_RPC_URL`**, **`OG_RPC_URL`** | preset RPC for **`network`** (**`https://mainnet.base.org`**) |
 | **`indexerUrl`** | **`OG_INDEXER_URL`** | preset indexer for **`storageNetwork`** |
 | **`privateKey`** | **`OGZK_PRIVATE_KEY`**, **`OG_PRIVATE_KEY`** | **`undefined`** |
-| **`storage`** | **`OGZK_STORAGE`** (**`0g`** or **`ipfs`**) | **`0g`** on 0G chains, **`ipfs`** on other chains |
+| **`storage`** | **`OGZK_STORAGE`** (**`0g`** or **`ipfs`**) | **`0g`** on 0G chains, **`ipfs`** on other chains — so **`ipfs`** by default |
 | **`storageNetwork`** | **`OGZK_STORAGE_NETWORK`** (must be a 0G chain, else **throws**) | the selected network when it is 0G-family, else **`0g-mainnet`** |
 | **`ipfs.apiUrl`** | **`OGZK_IPFS_API_URL`** | **`https://api.pinata.cloud/pinning/pinFileToIPFS`** |
 | **`ipfs.apiToken`** | **`OGZK_IPFS_API_TOKEN`** | **`undefined`** |
-| **`ipfs.gateway`** | **`OGZK_IPFS_GATEWAY`** | **`https://ipfs.io`** |
-| **`chainId`** | (not read from env) | preset **`chainId`** |
-| **`explorer`** | (not read from env) | preset **`explorer`** |
+| **`ipfs.gateway`** | **`OGZK_IPFS_GATEWAY`** | **`https://gateway.pinata.cloud`** |
+| **`chainId`** | (not read from env) | preset **`chainId`** (**`8453`**) |
+| **`explorer`** | (not read from env) | preset **`explorer`** (**`https://basescan.org`**) |
+
+**Breaking in 0.4.0:** the default network is **`base`**, not `0g-mainnet`. Since Base is `family: "evm"`, `storage` defaults to **`ipfs`** with it — a bare `loadConfig()` resolves the Base registry and the IPFS backend, and never touches a 0G endpoint. Code that relied on the implicit 0G default must now say so explicitly: `loadConfig({ network: "0g-mainnet" })` or `OGZK_NETWORK=0g-mainnet`.
 
 ```typescript
 import { loadConfig } from "@0gzk/sdk/node";
 
-const config = loadConfig();                             // env-only (0g-mainnet default)
+const config = loadConfig();                             // env-only: base + ipfs
+const zeroG = loadConfig({ network: "0g-mainnet" });     // back to 0G Chain + 0G Storage
 const testnet = loadConfig({ network: "0g-testnet" });   // force 0G Galileo
-const base = loadConfig({ network: "base-sepolia" });    // storage defaults to "ipfs"
+const sepolia = loadConfig({ network: "base-sepolia" }); // storage stays "ipfs"
 const explicit = loadConfig({
   rpcUrl: "https://my-private-rpc.example",
   privateKey: process.env.MY_KEY,
@@ -147,7 +150,7 @@ Downloads **`bundle.tar.gz`** from the right backend, extracts it into **`output
 
 | `ref` form | Backend |
 | --- | --- |
-| bare **`0x...`** root hash | **`config.storage`** (default **`0g`** — the pre-0.4.0 behavior) |
+| bare **`0x...`** root hash | **`config.storage`** — **`ipfs`** for a `loadConfig()` on the default Base network, **`0g`** when the field is absent from the object you pass (the pre-0.4.0 behavior) |
 | **`ipfs://<cid>`** or bare **`Qm...`** CID | IPFS, via **`config.ipfs.gateway`** |
 | **`0g://0x...`** | 0G Storage |
 
@@ -159,7 +162,7 @@ const config = loadConfig();
 // Default: extract to an OS temp dir (good for one-shot scripts).
 const bundle = await fetchBundle("0xabc...", { indexerUrl: config.indexerUrl });
 
-// IPFS-hosted bundle (no indexer involved; gateway defaults to https://ipfs.io).
+// IPFS-hosted bundle (no indexer involved; gateway defaults to https://gateway.pinata.cloud).
 const pinned = await fetchBundle("ipfs://QmS4us...", config);
 
 // Or: pin to a cache directory so repeat fetches are essentially free.

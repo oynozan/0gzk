@@ -262,18 +262,22 @@ The full matrix read by **`loadConfig`** (SDK) and the CLI. Per field the order 
 
 | Preferred | Legacy | Purpose | Default |
 | --- | --- | --- | --- |
-| **`OGZK_NETWORK`** | **`OG_NETWORK`** | Registry chain: **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**). Unknown values **throw**. | **`0g-mainnet`** |
-| **`OGZK_RPC_URL`** | **`OG_RPC_URL`** | Registry-chain EVM RPC. | preset |
+| **`OGZK_NETWORK`** | **`OG_NETWORK`** | Registry chain: **`base`**, **`base-sepolia`**, **`0g-mainnet`**, **`0g-testnet`** (aliases **`mainnet`** / **`testnet`**). Unknown values **throw**. | **`base`** (chain ID `8453`) |
+| **`OGZK_RPC_URL`** | **`OG_RPC_URL`** | Registry-chain EVM RPC. | preset (`https://mainnet.base.org`) |
 | **`OGZK_PRIVATE_KEY`** | **`OG_PRIVATE_KEY`** | Signing key for uploads (0g backend) and registrations. | unset |
 | — | **`OG_INDEXER_URL`** | 0G Storage indexer (0g backend only). | preset for `storageNetwork` |
-| **`OGZK_STORAGE`** | — | Bundle storage backend: **`0g`** or **`ipfs`**. | **`0g`** on 0G chains, **`ipfs`** elsewhere |
+| **`OGZK_STORAGE`** | — | Bundle storage backend: **`0g`** or **`ipfs`**. | **`ipfs`** on Base chains (hence by default), **`0g`** on 0G chains |
 | **`OGZK_STORAGE_NETWORK`** | — | 0G chain the 0g backend signs uploads on (**`0g-mainnet`** / **`0g-testnet`**). | selected network if 0G-family, else **`0g-mainnet`** |
 | **`OGZK_IPFS_API_URL`** | — | `pinFileToIPFS`-compatible upload endpoint. | `https://api.pinata.cloud/pinning/pinFileToIPFS` |
 | **`OGZK_IPFS_API_TOKEN`** | — | Bearer token for the pinning API; required to publish via IPFS. | unset |
-| **`OGZK_IPFS_GATEWAY`** | — | HTTP gateway for IPFS fetches. | `https://ipfs.io` |
-| **`OGZK_REGISTRY_ADDRESS`** | — | Override the `CircuitRegistry` address (wins over the baked-in map). | baked-in map |
+| **`OGZK_IPFS_GATEWAY`** | — | HTTP gateway for IPFS fetches (ipfs.io / dweb.link / w3s.link are tried as fallbacks). | `https://gateway.pinata.cloud` |
+| **`OGZK_REGISTRY_ADDRESS`** | — | Override the `CircuitRegistry` address (wins over the baked-in map; all four chains have a baked-in entry). | baked-in map |
 | **`OGZK_CACHE_DIR`** | — | CLI bundle cache root. | `~/.0gzk/bundles` |
 | **`OGZK_CONFIG_DIR`** | — | CLI config directory. | `~/.0gzk` |
+| **`OGZK_AGENT_URL`** | — | Hosted [`0gzk agent`](/agent) endpoint the CLI posts to. | `https://0gzk.com/api/agent` |
+| **`ANTHROPIC_API_KEY`** | — | Auth for `0gzk agent --local` (falls back to a Claude Code login). | unset |
+
+**Breaking in 0.4.0:** the default network moved from `0g-mainnet` to **`base`**, taking the default storage backend (`ipfs`) and the default `getRegistryContract` chain ID (`8453`) with it. Anything that relied on the implicit 0G default must now set `OGZK_NETWORK=0g-mainnet` (or `--network 0g-mainnet` / `0gzk config set network 0g-mainnet` / `loadConfig({ network: "0g-mainnet" })`).
 
 The **web app** reads the same names, plus `NEXT_PUBLIC_OGZK_NETWORK` (legacy `NEXT_PUBLIC_OG_NETWORK`) as the client-side mirror of the network choice, `NEXT_PUBLIC_OG_EXPLORER` as an explorer override, and `OG_CHAIN_ID` to force the registry-address lookup — see [`web/.env.template`](https://github.com/0gzk/core/blob/main/web/.env.template).
 

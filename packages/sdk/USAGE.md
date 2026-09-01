@@ -146,13 +146,13 @@ console.log(ok ? "VERIFIED" : "FAILED", publicSignals);
 process.exit(ok ? 0 : 1);
 ```
 
-`loadConfig` reads `OG_NETWORK` (defaults to `mainnet`; set to `testnet` for Galileo), `OG_RPC_URL`, `OG_INDEXER_URL`, and (for uploads) `OG_PRIVATE_KEY`. Pass `{ rpcUrl: "..." }` etc. to override programmatically. Use `dotenv` (or any other `.env` loader) yourself if you want — `loadConfig` does not call it.
+`loadConfig` reads `OGZK_NETWORK` (legacy `OG_NETWORK`) — **defaulting to `base`**, with `base-sepolia`, `0g-mainnet` and `0g-testnet` as the other choices — plus `OGZK_RPC_URL`, `OG_INDEXER_URL`, `OGZK_STORAGE`, the `OGZK_IPFS_*` settings, and (for uploads) `OGZK_PRIVATE_KEY`. The storage backend follows the chain family: `ipfs` on Base, `0g` on 0G chains. Pass `{ network: "0g-mainnet" }`, `{ rpcUrl: "..." }` etc. to override programmatically. Use `dotenv` (or any other `.env` loader) yourself if you want — `loadConfig` does not call it.
 
 ---
 
 ## 4. Resolve a circuit by name from the on-chain registry
 
-Use `@0gzk/sdk/onchain` to skip "what's the rootHash?" entirely. The CircuitRegistry contract on 0G Chain stores `name@version → rootHash + vkeyHash + verifier` mappings; the SDK ships a typed wrapper.
+Use `@0gzk/sdk/onchain` to skip "what's the rootHash?" entirely. The CircuitRegistry contract — on Base (the default) or 0G Chain — stores `name@version → rootHash + vkeyHash + verifier` mappings; the SDK ships a typed wrapper.
 
 ```ts
 import { JsonRpcProvider } from "ethers";
@@ -164,8 +164,9 @@ import {
 import { fetchBundle, loadConfig } from "@0gzk/sdk/node";
 import { generateProof, verifyLocal } from "@0gzk/sdk";
 
-const provider = new JsonRpcProvider("https://evmrpc.0g.ai");
-const registry = getRegistryContract(provider); // chainId defaults to 16661 (mainnet)
+const provider = new JsonRpcProvider("https://mainnet.base.org");
+const registry = getRegistryContract(provider); // chainId defaults to 8453 (Base mainnet)
+// On another chain, name it: getRegistryContract(provider, undefined, 16661)
 
 const { record, bundle } = await resolveBundle(
   registry,

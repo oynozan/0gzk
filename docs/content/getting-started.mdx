@@ -30,23 +30,26 @@ Operations that **upload** bundles, **register** on-chain, or **resolve** via th
 Create a `.env` file (never commit real keys):
 
 ```bash
-# 0g-mainnet | 0g-testnet | base | base-sepolia. Defaults to 0g-mainnet.
+# base | base-sepolia | 0g-mainnet | 0g-testnet. Defaults to base (chain 8453).
 # ("mainnet"/"testnet" still work as deprecated 0G aliases.)
-OGZK_NETWORK=0g-testnet
+# OGZK_NETWORK=base
 
 # Required for gas-spending actions (0x + 64 hex chars).
 OGZK_PRIVATE_KEY=0xYOUR_KEY_HERE
 
 # Optional overrides (defaults work for most users):
-# OGZK_RPC_URL=https://evmrpc-testnet.0g.ai
-# OG_INDEXER_URL=https://indexer-storage-testnet-turbo.0g.ai
-# OGZK_STORAGE=ipfs                # bundle storage backend (default: 0g on 0G chains, ipfs on Base)
+# OGZK_RPC_URL=https://mainnet.base.org
 # OGZK_IPFS_API_TOKEN=eyJ...       # pinning-service token, needed to publish via IPFS
+# OGZK_STORAGE=0g                  # backend override (default: ipfs on Base, 0g on 0G chains)
+# OG_INDEXER_URL=https://indexer-storage-turbo.0g.ai   # 0g backend only
 ```
 
-- **0G testnet:** use `OGZK_NETWORK=0g-testnet`, fund the address from the [0G faucet](https://faucet.0g.ai).
-- **0G mainnet:** use `OGZK_NETWORK=0g-mainnet` (the default) and a funded mainnet key.
-- **Base Sepolia / Base:** use `OGZK_NETWORK=base-sepolia` (or `base`); bundles default to the **IPFS** backend there, so you need a pinning token instead of a 0G wallet. See **[Networks & storage](/networks)**.
+- **Base (default):** nothing to set. The registry is on Base mainnet and bundles are pinned to **IPFS**, so publishing needs a pinning token (a Pinata-style JWT) plus Base ETH for the registration tx — no 0G wallet. Fetching and proving need neither.
+- **Base Sepolia:** `OGZK_NETWORK=base-sepolia`, same IPFS backend, testnet ETH from any Base Sepolia faucet.
+- **0G mainnet:** `OGZK_NETWORK=0g-mainnet` — this is the switch back from the Base default. Storage follows the chain family, so the backend returns to **0G Storage** and uploads need a funded 0G key.
+- **0G testnet:** `OGZK_NETWORK=0g-testnet`, fund the address from the [0G faucet](https://faucet.0g.ai).
+
+See **[Networks & storage](/networks)** for the full matrix.
 
 Optional: point the CLI at a key without a file using `--key 0x…` on supported commands.
 
@@ -64,6 +67,7 @@ node -e "import('@0gzk/sdk').then(m => console.log('ok', typeof m.generateProof)
 
 | Goal | Where to read |
 | --- | --- |
+| Describe a proof in English and let the agent run it | [AI agent](/agent) |
 | Publish a bundle and register it | [CLI → publish](/cli) |
 | Prove something locally | [CLI → prove](/cli), [SDK → core](/sdk/core) |
 | Fetch a bundle in Node | [SDK → node](/sdk/node) |

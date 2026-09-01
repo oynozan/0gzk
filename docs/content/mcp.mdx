@@ -5,7 +5,7 @@ description: "Circuit discovery and authoring tools for any MCP client — Claud
 
 # MCP server
 
-**`@0gzk/mcp`** is a [Model Context Protocol](https://modelcontextprotocol.io) server that turns any MCP client — Claude Code, Claude Desktop, Cursor — into a 0gzk circuit assistant. It answers "which circuit proves X?" from a searchable catalog, resolves live registry records on every supported chain, and scaffolds/builds/proves circuits in a checkout of this repo.
+**`@0gzk/mcp`** is a [Model Context Protocol](https://modelcontextprotocol.io) server that turns any MCP client — Claude Code, Claude Desktop, Cursor — into a 0gzk circuit assistant. It answers "which circuit proves X?" from a searchable catalog, resolves live registry records on every supported chain, checks a user's inputs against a circuit's signal schema and **generates the proof**, and scaffolds/builds circuits in a checkout of this repo.
 
 ```bash
 # Claude Code (any directory)
@@ -29,22 +29,28 @@ Claude Desktop / Cursor (`claude_desktop_config.json` / `.cursor/mcp.json`):
 
 | Mode | When | What you get |
 | --- | --- | --- |
-| **repo** | Started inside a 0gzk checkout (or with `--repo-root` / `OGZK_REPO_ROOT` / `--catalog`) | All 9 tools: catalog-backed search + the 4 authoring tools |
-| **discovery** | Anywhere else (e.g. `npx -y @0gzk/mcp` in an empty dir) | The 5 discovery tools, backed by the live on-chain registries |
+| **repo** | Started inside a 0gzk checkout (or with `--repo-root` / `OGZK_REPO_ROOT` / `--catalog`) | All **11** tools: catalog-backed discovery, input handling, and the 4 authoring tools |
+| **discovery** | Anywhere else (e.g. `npx -y @0gzk/mcp` in an empty dir) | **8** tools: the 5 discovery tools backed by the live on-chain registries, plus `validate_inputs`, `read_input_file`, and `prove_circuit` |
 
 ## Tools
 
-| Tool | Mode | What it does |
-| --- | --- | --- |
-| `search_circuits` | both | Ranked keyword search over names, tags, use cases, descriptions, and I/O docs |
-| `list_circuits` | both | Page through the catalog or a live registry (`chain` selects which) |
-| `get_circuit` | both | Full metadata, typed I/O schema, example input, publications, and a ready-to-run prove recipe. Unknown names are resolved on-chain and their bundle fetched into the local cache |
-| `get_example_input` | both | The circuit's committed `example_input.json` |
-| `resolve_circuit` | both | `name[@version]` → per-chain registry records (rootHash, vkeyHash, verifier, publisher, metadataURI) |
-| `scaffold_circuit` | repo | Create `circuits/<name>/` with a typed `.circom` skeleton, `metadata.json`, `build.sh`, `example_input.json` |
-| `validate_metadata` | repo | Validate a `metadata.json` against the schema, with warnings for missing discovery fields |
-| `build_circuit` | repo | Compile with `circom` + run the pure-JS trusted setup (`@0gzk/sdk/build`) into `circuit_bundle/`. Fails gracefully when `circom` is not installed |
-| `prove_circuit` | repo | Generate + verify a Groth16 proof against a local bundle, a registry name, or a rootHash |
+`read-only` is the MCP `readOnlyHint` annotation. The **writes** column is what actually lands on disk.
+
+| Tool | Mode | Read-only | Writes | What it does |
+| --- | --- | --- | --- | --- |
+| `search_circuits` | both | yes | — | Ranked keyword search over names, tags, use cases, descriptions, and I/O docs |
+| `list_circuits` | both | yes | — | Page through the catalog or a live registry (`chain` selects which) |
+| `get_circuit` | both | yes | bundle cache | Full metadata, typed I/O schema, example input, publications, and a ready-to-run prove recipe. Unknown names are resolved on-chain and their bundle fetched into the local cache |
+| `get_example_input` | both | yes | — | The circuit's committed `example_input.json` |
+| `resolve_circuit` | both | yes | — | `name[@version]` → per-chain registry records (rootHash, vkeyHash, verifier, publisher, metadataURI) |
+| `validate_inputs` | both | yes | — | Check candidate inputs against a circuit's signal schema **without proving**. Returns `{valid, errors, schema}`; call it with no `inputs` to get the schema (plus `missing`) so you can ask the user for exactly what the circuit needs. Instant when the circuit is in the catalog — no bundle download |
+| `read_input_file` | both | yes | — | Read a local JSON input file and report **only the signal names and value types** — never the values, which stay on the machine. Pass the same path to `prove_circuit` as `inputFile` |
+| `prove_circuit` | both | no | `outDir` + bundle cache | Generate + verify a Groth16 proof against a local bundle (`bundleDir`), a registry `name`, or a `rootHash`. Inputs come from inline `inputs` **or** a local `inputFile`; with `outDir` it writes `proof.json`, `public.json`, `result.json` |
+| `scaffold_circuit` | repo | no | `circuits/<name>/` | Create `circuits/<name>/` with a typed `.circom` skeleton, `metadata.json`, `build.sh`, `example_input.json` |
+| `validate_metadata` | repo | no | — | Validate a `metadata.json` against the schema, with warnings for missing discovery fields |
+| `build_circuit` | repo | no | `build/`, `circuit_bundle/` | Compile with `circom` + run the pure-JS trusted setup (`@0gzk/sdk/build`) into `circuit_bundle/`. Fails gracefully when `circom` is not installed |
+
+Chain-aware tools (`prove_circuit`, `validate_inputs`, `get_circuit`, `list_circuits`, `search_circuits`) default to **`base`**; `resolve_circuit` queries all four chains at once.
 
 Resources: `ogzk://guide/circom-authoring` (an authoring handbook distilled from this repo's build pipeline) and `ogzk://catalog` (the raw `circuits/index.json`).
 
@@ -61,10 +67,10 @@ Discovery is powered by **`circuits/index.json`** — a committed, deterministic
 
 | Variable | Purpose |
 | --- | --- |
-| `OGZK_NETWORK` / `OG_NETWORK` | Default chain for live-registry tools |
+| `OGZK_NETWORK` / `OG_NETWORK` | Chain for live-registry tools when a call does not name one (built-in default: `base`) |
 | `OG_RPC_URL` | RPC override for the selected chain |
-| `OGZK_REGISTRY_ADDRESS_BASE`, `OGZK_REGISTRY_ADDRESS_BASE_SEPOLIA` | Registry addresses for Base chains until they are baked into the SDK |
+| `OGZK_REGISTRY_ADDRESS_BASE`, `OGZK_REGISTRY_ADDRESS_BASE_SEPOLIA` | Override the baked-in Base registry addresses (all four chains ship with one) |
 | `OGZK_REPO_ROOT` | Force repo mode from any working directory |
 | `OGZK_CACHE_DIR` | Bundle cache root (default `~/.0gzk/bundles`) |
 
-The same server powers [`0gzk agent`](/agent). Its hosted backend is an MCP client connected to this server over an in-memory transport (discovery tools only — the authoring tools write to disk and are never exposed on a public endpoint), and `--local` mode mounts all nine tools in-process. Three transports, one implementation.
+The same server powers [`0gzk agent`](/agent). Its hosted backend is an MCP client connected to this server over an in-memory transport and registers **only the 5 read-only discovery tools** server-side; `validate_inputs`, `read_input_file` and `prove_circuit` are declared to the model but delegated to the user's CLI, which executes them locally and posts the results back (that is what keeps the witness on the user's machine), and the authoring tools are never exposed on a public endpoint at all. `--local` mode mounts the whole set in-process — 11 tools in a checkout, 8 outside one. Three transports, one implementation.

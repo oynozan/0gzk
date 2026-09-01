@@ -13,12 +13,12 @@ Use these when you connect a wallet or **`ethers`** provider and call **`getRegi
 
 | Network | Chain ID | `CircuitRegistry` address |
 | --- | ---: | --- |
+| **Base mainnet** (`base`, **default**) | `8453` | [`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`](https://basescan.org/address/0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d) |
+| **Base Sepolia** (`base-sepolia`) | `84532` | [`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`](https://sepolia.basescan.org/address/0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d) |
 | **0G mainnet** (`0g-mainnet`) | `16661` | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 | **0G testnet (Galileo)** (`0g-testnet`) | `16602` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
-| **Base Sepolia** (`base-sepolia`) | `84532` | [`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`](https://sepolia.basescan.org/address/0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d) |
-| **Base mainnet** (`base`) | `8453` | [`0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d`](https://basescan.org/address/0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d) |
 
-Pass the **`chainId`** into **`getRegistryContract(runner, address?, chainId)`** explicitly when you rely on baked-in defaults, or pass the **`address`** explicitly if you deployed your own registry (or if you deployed your own registry). The same table ships as [`registry-addresses.json`](https://github.com/0gzk/core/blob/main/packages/contracts/registry-addresses.json) in the contracts package and as `REGISTRY_ADDRESSES` in `@0gzk/sdk/onchain` . The registry occupies the same address on 0G mainnet, Base Sepolia, and Base mainnet (same deployer, nonce-0 CREATE).
+**`getRegistryContract(runner, address?, chainId)`** defaults `chainId` to **`8453`** (Base mainnet, the default network), so pass it explicitly whenever your runner points elsewhere — or pass the **`address`** explicitly if you deployed your own registry. The same table ships as [`registry-addresses.json`](https://github.com/0gzk/core/blob/main/packages/contracts/registry-addresses.json) in the contracts package and as `REGISTRY_ADDRESSES` in `@0gzk/sdk/onchain`. The registry occupies the same address on Base mainnet, Base Sepolia, and 0G mainnet (same deployer, nonce-0 CREATE).
 
 The contract itself is **chain-agnostic and unchanged in 0.4.0** — the multi-chain and IPFS support rides entirely on the existing `metadataURI` field (see **[Networks & storage](/networks#bundle-uri-convention)**), so no redeploys were needed on 0G.
 

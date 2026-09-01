@@ -22,7 +22,7 @@ export interface AgentOptions {
 /**
  * `0gzk agent` — two modes:
  * - default: hosted backend (gpt-5-nano server-side, no user API key at all)
- * - --local: Claude Agent SDK in-process with the full 9-tool set, including
+ * - --local: Claude Agent SDK in-process with the full tool set, including
  *   authoring tools; needs ANTHROPIC_API_KEY or a Claude Code login.
  */
 export async function runAgent(promptWords: string[], opts: AgentOptions = {}): Promise<void> {

@@ -1,6 +1,6 @@
 # @0gzk/cli
 
-Command-line tool for the [0gzk](https://github.com/0gzk/core) ZK Proof-as-a-Service platform. Publish Circom circuit bundles to decentralized storage (0G Storage or IPFS), register them on-chain (0G or Base), fetch them back, generate Groth16 proofs locally — witness data never leaves your machine — and chat with an AI agent that finds the circuit you need.
+Command-line tool for the [0gzk](https://github.com/0gzk/core) ZK Proof-as-a-Service platform. Publish Circom circuit bundles to decentralized storage (IPFS or 0G Storage), register them on-chain (Base or 0G), fetch them back, generate Groth16 proofs locally — witness data never leaves your machine — or describe what you want to prove and let the built-in AI agent run the whole job for you.
 
 ## Install
 
@@ -13,8 +13,9 @@ Provides the `0gzk` binary.
 ## Quick start
 
 ```bash
-# Ask the AI which circuit you need — no API key required
-0gzk agent "how do I prove someone is over 18 without their birthday?"
+# Let the AI do it: finds the circuit, asks for what it needs, proves locally.
+# No API key required.
+0gzk agent "Prove that I am over 18. I was born in 1990, the current year is 2026. Save the proof to ./proof"
 
 # Prove against a published circuit by name
 0gzk prove --name age_verification ./input.json
@@ -29,12 +30,12 @@ Provides the `0gzk` binary.
 
 | Network | Chain ID | Registry | Default storage |
 | --- | --- | --- | --- |
-| `0g-mainnet` (default) | 16661 | baked in | 0G Storage |
-| `0g-testnet` | 16602 | baked in | 0G Storage |
-| `base` | 8453 | baked in | IPFS |
+| `base` **(default)** | 8453 | baked in | IPFS |
 | `base-sepolia` | 84532 | baked in | IPFS |
+| `0g-mainnet` | 16661 | baked in | 0G Storage |
+| `0g-testnet` | 16602 | baked in | 0G Storage |
 
-`mainnet` / `testnet` still work as deprecated aliases for the 0G pair. On Base, bundles pin to IPFS (any `pinFileToIPFS`-compatible service; set `ipfsApiToken`) so no 0G wallet is ever needed.
+`mainnet` / `testnet` still work as deprecated aliases for the 0G pair. With nothing configured the CLI talks to **Base mainnet** and pins bundles to **IPFS** (any `pinFileToIPFS`-compatible service; set `ipfsApiToken`), so no 0G wallet is needed. `0gzk config set network 0g-mainnet` — or `--network 0g-mainnet` / `OGZK_NETWORK=0g-mainnet` — switches the registry chain *and* the storage backend back to 0G.
 
 ## Configuration
 
@@ -55,22 +56,32 @@ Resolution priority (highest wins): CLI flag → shell env (`OGZK_*`, legacy `OG
 
 ### `0gzk agent [prompt...]`
 
-Chat with an AI assistant that knows every published circuit. **No API key needed** — the conversation runs through the hosted 0gzk backend (`https://0gzk.com/api/agent`; override with `agentUrl`), which searches the circuit catalog and live registries server-side and returns the answer with a full tool trace.
+An agent that **does the job**, not one that tells you which command to type: it finds the circuit, shows you the signals it needs, asks for any values you did not give, validates them, runs the prover, and saves the artifacts.
 
 ```bash
-0gzk agent "which circuit fits a sealed-bid auction?"   # one-shot
+0gzk agent "Prove that I am over 18. I was born in 1990, the current year is 2026. Save the proof to /tmp/agent-proof"
+# ⏺ search_circuits({"query":"prove age over 18"})
+# ⏺ validate_inputs({"name":"age_verification",…})          · local
+# ⏺ prove_circuit({…,"outDir":"/tmp/agent-proof"})          · local
+# verified true · publicSignals ["1","2026","18"] · proof.json, public.json, result.json written
+
 0gzk agent                                              # interactive chat
 ```
 
-Circuit authors: `0gzk agent --local` runs the Claude Agent SDK in-process with the full authoring toolset (scaffold → build → prove). Needs `@anthropic-ai/claude-agent-sdk` installed plus an Anthropic key (`0gzk config set anthropicApiKey …`) or a Claude Code login.
+**No API key needed** — the conversation runs through the hosted 0gzk backend (`https://0gzk.com/api/agent`; override with `0gzk config set agentUrl …` or `OGZK_AGENT_URL`), which runs the model and the five read-only discovery tools server-side.
+
+**Your inputs stay here.** The three tools that touch this machine — `validate_inputs`, `read_input_file`, `prove_circuit` — are declared to the model but executed by the CLI: the endpoint returns them as `clientToolCalls`, the CLI runs them locally (marked `· local` in the trace) and posts only their results back. `read_input_file` reports signal names and types, never values; `prove_circuit` can take `inputFile` (a local JSON path) instead of inline inputs, and `outDir` to write `proof.json` / `public.json` / `result.json`.
+
+Circuit authors: `0gzk agent --local` runs the Claude Agent SDK in-process with the full toolset including authoring (scaffold → build → prove) — 11 tools inside a repo checkout, 8 outside one. Needs `@anthropic-ai/claude-agent-sdk` installed plus an Anthropic key (`0gzk config set anthropicApiKey …`) or a Claude Code login. Flags: `--model`, `--max-turns`, `--full-access`, `--repo-root`.
 
 ### `0gzk publish <bundleDir>`
 
 Pack a `circuit_bundle/` directory, upload it to storage, and optionally register it on-chain in the same run.
 
 ```bash
-0gzk publish ./circuit_bundle --register                      # 0G Storage + 0G registry
-0gzk publish ./circuit_bundle --network base-sepolia --register  # IPFS + Base registry
+0gzk publish ./circuit_bundle --register                        # IPFS + Base registry (defaults)
+0gzk publish ./circuit_bundle --network base-sepolia --register # IPFS + Base Sepolia registry
+0gzk publish ./circuit_bundle --network 0g-mainnet --register   # 0G Storage + 0G registry
 ```
 
 Flags: `--storage <0g|ipfs>`, `--storage-network`, `--metadata-uri`, `--verifier-address`, `--wait <duration>` / `--no-wait`, `--no-receipt`. A `.published.json` receipt lands in the bundle dir.

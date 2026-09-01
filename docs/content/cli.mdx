@@ -16,7 +16,7 @@ npm install -g @0gzk/cli
 
 - The CLI **does not read `.env` files**. Persistent settings live in **`~/.0gzk/config.json`** and are managed with **`0gzk config`** (see [`0gzk config`](#0gzk-config) below). Shell env vars are still honored as a one-off override (handy for CI).
 - Every command resolves configuration through **`@0gzk/sdk/node`**'s **`loadConfig`** (see **[SDK -> Node](/sdk/node)** for the full table). CLI flags **`--network`**, **`--storage`**, **`--storage-network`**, **`--rpc-url`**, **`--indexer-url`**, and **`--key`** override the matching environment variable for that invocation.
-- **`--network`** accepts the canonical names **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`**, plus the deprecated 0G aliases **`mainnet`** / **`testnet`**. Unknown names error out with the valid list (they no longer fall back silently). See **[Networks & storage](/networks)**.
+- **`--network`** accepts the canonical names **`base`** (the default), **`base-sepolia`**, **`0g-mainnet`**, **`0g-testnet`**, plus the deprecated 0G aliases **`mainnet`** / **`testnet`**. Unknown names error out with the valid list (they no longer fall back silently). See **[Networks & storage](/networks)**.
 - After a command resolves, the CLI calls **`process.exit(process.exitCode ?? 0)`** to break out of stuck snarkjs worker threads (relevant for **`prove`** especially).
 - Uncaught exceptions print **`error: <message>`** in red and **`process.exit(1)`**.
 
@@ -27,7 +27,7 @@ Highest wins:
 1. **CLI flag** (`--key`, `--network`, `--storage`, `--storage-network`, `--rpc-url`, `--indexer-url`, `--registry`)
 2. **Shell environment variable** — the generic `OGZK_*` name first, then the legacy `OG_*` name (`OGZK_PRIVATE_KEY`/`OG_PRIVATE_KEY`, `OGZK_NETWORK`/`OG_NETWORK`, `OGZK_RPC_URL`/`OG_RPC_URL`, `OG_INDEXER_URL`, `OGZK_STORAGE`, `OGZK_STORAGE_NETWORK`, `OGZK_IPFS_*`, `OGZK_REGISTRY_ADDRESS`)
 3. **`~/.0gzk/config.json`** (managed by **`0gzk config`**)
-4. **Built-in network preset** (`0g-mainnet` by default)
+4. **Built-in network preset** (**`base`** by default — chain ID `8453`, RPC `https://mainnet.base.org`, explorer basescan.org, storage backend **`ipfs`**)
 
 The CLI reads **`~/.0gzk/config.json`** at startup and injects each present key into **`process.env`** **only if the matching env var is not already set**, then hands off to the SDK. That's how the priority order is enforced — the SDK itself just reads **`process.env`**.
 
@@ -37,15 +37,15 @@ These are honored when set in the shell, but the recommended way to set them per
 
 | Variable | Read by | Purpose |
 | --- | --- | --- |
-| **`OGZK_NETWORK`** / **`OG_NETWORK`** | every command | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**); unknown values **error** with the valid list. |
+| **`OGZK_NETWORK`** / **`OG_NETWORK`** | every command | **`base`** (default), **`base-sepolia`**, **`0g-mainnet`**, **`0g-testnet`** (aliases **`mainnet`** / **`testnet`**); unknown values **error** with the valid list. |
 | **`OGZK_RPC_URL`** / **`OG_RPC_URL`** | every command | Override EVM RPC. |
 | **`OG_INDEXER_URL`** | **`publish`**, **`fetch`**, **`prove`**, **`registry resolve`** | Override the 0G Storage indexer (0g backend only). |
 | **`OGZK_PRIVATE_KEY`** / **`OG_PRIVATE_KEY`** | **`publish`**, **`registry register`** | 0x-prefixed signing key. |
-| **`OGZK_STORAGE`** | **`publish`**, **`fetch`**, **`prove`** | Bundle storage backend: **`0g`** or **`ipfs`**. Default: **`0g`** on 0G chains, **`ipfs`** on Base chains. |
+| **`OGZK_STORAGE`** | **`publish`**, **`fetch`**, **`prove`** | Bundle storage backend: **`0g`** or **`ipfs`**. Default: **`ipfs`** on Base chains (so **`ipfs`** out of the box), **`0g`** on 0G chains. |
 | **`OGZK_STORAGE_NETWORK`** | **`publish`** | 0G chain the **`0g`** backend signs uploads on: **`0g-mainnet`** or **`0g-testnet`**. |
 | **`OGZK_IPFS_API_URL`** | **`publish --storage ipfs`** | `pinFileToIPFS`-compatible upload endpoint; default **`https://api.pinata.cloud/pinning/pinFileToIPFS`**. |
 | **`OGZK_IPFS_API_TOKEN`** | **`publish --storage ipfs`** | Bearer token for the pinning API (e.g. a Pinata JWT). Required to publish via IPFS. |
-| **`OGZK_IPFS_GATEWAY`** | **`fetch`**, **`prove`**, **`registry resolve`** | HTTP gateway for IPFS reads; default **`https://ipfs.io`**. |
+| **`OGZK_IPFS_GATEWAY`** | **`fetch`**, **`prove`**, **`registry resolve`** | HTTP gateway for IPFS reads; default **`https://gateway.pinata.cloud`** (ipfs.io / dweb.link / w3s.link are tried as fallbacks). |
 | **`OGZK_REGISTRY_ADDRESS`** | every **`registry`** subcommand, **`prove --name`**, **`publish --register`** | Override the registry address before falling back to the baked-in map. |
 | **`OGZK_CACHE_DIR`** | **`prove --root-hash`**, **`prove --name`** | Root directory for cached bundles; default **`~/.0gzk/bundles`**. |
 | **`OGZK_CONFIG_DIR`** | every command | Override the config dir; default **`~/.0gzk`**. The config file is **`<dir>/config.json`**. |
@@ -77,7 +77,7 @@ Read and write persistent CLI settings. The store is a flat JSON file at **`~/.0
 | Key | Validation | Injected as |
 | --- | --- | --- |
 | **`privateKey`** | **`/^0x[0-9a-fA-F]{64}$/`** | **`OG_PRIVATE_KEY`** |
-| **`network`** | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (or alias **`mainnet`** / **`testnet`**) | **`OG_NETWORK`** |
+| **`network`** | **`base`** (default), **`base-sepolia`**, **`0g-mainnet`**, **`0g-testnet`** (or alias **`mainnet`** / **`testnet`**) | **`OG_NETWORK`** |
 | **`rpcUrl`** | http(s) URL | **`OG_RPC_URL`** |
 | **`indexerUrl`** | http(s) URL | **`OG_INDEXER_URL`** |
 | **`registry`** | **`/^0x[0-9a-fA-F]{40}$/`** | **`OGZK_REGISTRY_ADDRESS`** |
@@ -86,7 +86,8 @@ Read and write persistent CLI settings. The store is a flat JSON file at **`~/.0
 | **`ipfsApiUrl`** | http(s) URL | **`OGZK_IPFS_API_URL`** |
 | **`ipfsApiToken`** | non-empty string (secret, masked) | **`OGZK_IPFS_API_TOKEN`** |
 | **`ipfsGateway`** | http(s) URL | **`OGZK_IPFS_GATEWAY`** |
-| **`anthropicApiKey`** | non-empty string (secret, masked; for the upcoming **`0gzk agent`**) | **`ANTHROPIC_API_KEY`** |
+| **`anthropicApiKey`** | non-empty string (secret, masked; used by **`0gzk agent --local`**) | **`ANTHROPIC_API_KEY`** |
+| **`agentUrl`** | http(s) URL (hosted **[`0gzk agent`](/agent)** endpoint; default **`https://0gzk.com/api/agent`**) | **`OGZK_AGENT_URL`** |
 
 Validation runs before the file is written; an invalid value never reaches disk.
 
@@ -117,7 +118,7 @@ Same validation, same masked output, same on-disk location.
 
 ```bash
 0gzk key 0x...                        # store the signing key once
-0gzk config set network 0g-mainnet    # optional: pick a network (0g-mainnet is default)
+0gzk config set network 0g-mainnet    # optional: switch off the `base` default
 0gzk config get                       # confirm
 # config: /home/you/.0gzk/config.json
 #
@@ -132,9 +133,12 @@ Same validation, same masked output, same on-disk location.
 #   ipfsApiToken     (unset)      (default)
 #   ipfsGateway      (unset)      (default)
 #   anthropicApiKey  (unset)      (default)
+#   agentUrl         (unset)      (default)
 #
 # Resolution: CLI flag > shell env > ~/.0gzk/config.json > built-in network preset.
 ```
+
+With nothing set at all, the effective network is **`base`** and the storage backend is **`ipfs`**.
 
 ### Source labels in `config get`
 
@@ -166,8 +170,8 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 | Argument / option | Default | Purpose |
 | --- | --- | --- |
 | **`<bundleDir>`** | required | Path to a directory containing **`metadata.json`**, **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`** (and any extras like **`verifier.sol`**). |
-| **`--network <network>`** | env / **`0g-mainnet`** | **`0g-mainnet`**, **`0g-testnet`**, **`base`**, **`base-sepolia`** (aliases **`mainnet`** / **`testnet`**). |
-| **`--storage <0g \| ipfs>`** | **`0g`** on 0G chains, **`ipfs`** on Base chains | Bundle storage backend. |
+| **`--network <network>`** | env / **`base`** | **`base`**, **`base-sepolia`**, **`0g-mainnet`**, **`0g-testnet`** (aliases **`mainnet`** / **`testnet`**). |
+| **`--storage <0g \| ipfs>`** | **`ipfs`** on Base chains, **`0g`** on 0G chains | Bundle storage backend. |
 | **`--storage-network <network>`** | selected 0G network, else **`0g-mainnet`** | 0G chain the **`0g`** backend signs the upload tx on. |
 | **`--rpc-url <url>`** | preset | Override EVM RPC. |
 | **`--indexer-url <url>`** | preset | Override 0G Storage indexer (0g backend). |
@@ -241,14 +245,14 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 | --- | --- | --- |
 | **`<ref>`** | required | Bundle reference: bare **`0x`** root hash, **`ipfs://<cid>`**, bare **`Qm...`** CID, or **`0g://0x...`** URI. |
 | **`[outputDir]`** | OS temp dir | Where to extract. |
-| **`--network`** | env / **`0g-mainnet`** | Network preset. |
+| **`--network`** | env / **`base`** | Network preset. |
 | **`--storage <0g \| ipfs>`** | config default | Backend used for **bare `0x` refs** (prefixed refs pick their own backend). |
 | **`--indexer-url`** | preset / env | Override the 0G Storage indexer. |
 
 ### Behavior
 
 1. **`loadConfig`** with **`network`**, **`storage`**, and **`indexerUrl`** overrides.
-2. The backend is chosen from the ref itself (**`ipfs://`** / **`Qm...`** → IPFS gateway, **`0g://`** → 0G Storage); a bare **`0x`** hash uses **`--storage`** / the configured default (0G Storage unless you changed it — the pre-0.4.0 behavior).
+2. The backend is chosen from the ref itself (**`ipfs://`** / **`Qm...`** → IPFS gateway, **`0g://`** → 0G Storage); a bare **`0x`** hash uses **`--storage`** / the configured default — **IPFS** on the default Base network, 0G Storage on a 0G network.
 3. **`fetchBundle(ref, config, outputDir)`** from **`@0gzk/sdk/node`** downloads **`bundle.tar.gz`** and extracts it into the chosen directory (or a fresh temp dir if **`outputDir`** is omitted).
 4. Prints circuit **`name`**, **`version`**, **`protocol`**, **`curve`** read from **`metadata.json`**, then either the resolved output path or a note that it landed in a temp dir.
 
@@ -275,13 +279,13 @@ CLI flags (e.g. **`--key`** on **`publish`**) do not appear in **`config get`** 
 | --- | --- | --- |
 | **`<inputFile>`** | required | JSON file with circuit inputs (must parse to a plain object). |
 | **`--bundle <dir>`** | one-of | Local **`circuit_bundle/`**. |
-| **`--root-hash <hex>`** | one-of | Fetch from storage by hash (backend = the configured **`storage`** default, 0G Storage unless changed); cached under **`OGZK_CACHE_DIR/<rootHash>/`**. |
+| **`--root-hash <hex>`** | one-of | Fetch from storage by hash (backend = the configured **`storage`** default: **IPFS** on Base, 0G Storage on a 0G network); cached under **`OGZK_CACHE_DIR/<rootHash>/`**. |
 | **`--name <spec>`** | one-of | Resolve **`name`** or **`name@version`** via **`CircuitRegistry`** then fetch from the backend named by the record. |
 | **`--registry <address>`** | **`OGZK_REGISTRY_ADDRESS`** or baked-in | Used with **`--name`**. |
 | **`--rpc-url <url>`** | env / preset | Used with **`--name`**. |
 | **`--out <dir>`** | **`proof-<YYYYMMDD-HHMMSS>`** in cwd | Where to write outputs. |
 | **`--no-verify`** | verify on | Skip **`verifyLocal`**. |
-| **`--network`** | env / **`0g-mainnet`** | Network preset. |
+| **`--network`** | env / **`base`** | Network preset. |
 | **`--indexer-url`** | preset / env | Override the 0G Storage indexer. |
 
 Exactly **one** of **`--bundle`**, **`--root-hash`**, **`--name`** must be provided.

@@ -5,15 +5,15 @@ description: "What 0gzk is and how it uses decentralized storage and on-chain re
 
 # Introduction
 
-**0gzk** is a toolkit for shipping **zero-knowledge proofs**. You write a **Circom** circuit, package the proving artifacts into a **circuit bundle**, and store that bundle as content-addressed data on **0G Storage** or **IPFS**. A small on-chain record — on a registry deployed to **0G Chain** or **Base** — lets others find it by name. From there, anyone with the **`rootHash`** can pull the same bytes back and run the prover **on their own machine or in their browser**.
+**0gzk** is a toolkit for shipping **zero-knowledge proofs**. You write a **Circom** circuit, package the proving artifacts into a **circuit bundle**, and store that bundle as content-addressed data on **IPFS** or **0G Storage**. A small on-chain record — on a registry deployed to **Base** and **0G Chain** — lets others find it by name. From there, anyone with the **`rootHash`** can pull the same bytes back and run the prover **on their own machine or in their browser**.
 
-The reason for decentralized storage is straightforward: proving systems produce **large binary artifacts** (compiled wasm, proving keys, verification keys) that need to be **reproducible** and **available**. **0G Storage** (the default) or **IPFS** gives every bundle a stable content address. An EVM chain — **0G Chain** by default, **Base** if that is where your users are — hosts a small on-chain record so others can find your circuit by **`name@version`** instead of memorizing a hash. See **[Networks & storage](/networks)** for the full chain and backend matrix.
+The reason for decentralized storage is straightforward: proving systems produce **large binary artifacts** (compiled wasm, proving keys, verification keys) that need to be **reproducible** and **available**. **IPFS** (the default) or **0G Storage** gives every bundle a stable content address. An EVM chain — **Base** by default, **0G Chain** when you want native storage in the same stack — hosts a small on-chain record so others can find your circuit by **`name@version`** instead of memorizing a hash. The default network is **`base`** (chain ID `8453`); one setting (`0gzk config set network 0g-mainnet`, `--network 0g-mainnet`, or `OGZK_NETWORK=0g-mainnet`) moves the whole stack to 0G. See **[Networks & storage](/networks)** for the full chain and backend matrix.
 
 Proving happens **next to the user**. Witness data (the private inputs your circuit consumes) stays on the device that calls **`generateProof`**. What leaves the device is a small **Groth16 proof** and the **public signals** you chose to expose. The same code path works from a Node script, a browser app, or the **`0gzk`** command line.
 
 ## What you actually do
 
-A typical flow looks like this. A circuit author writes **`circuit.circom`**, runs a one-time trusted setup, and ends up with a **`circuit_bundle/`** containing **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`**, **`metadata.json`**, and a generated **`verifier.sol`**. The CLI uploads that directory to **0G Storage** (or pins it to **IPFS**) and prints a **`rootHash`**:
+A typical flow looks like this. A circuit author writes **`circuit.circom`**, runs a one-time trusted setup, and ends up with a **`circuit_bundle/`** containing **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`**, **`metadata.json`**, and a generated **`verifier.sol`**. The CLI pins that directory to **IPFS** (or uploads it to **0G Storage** on a 0G network) and prints a **`rootHash`**:
 
 ```bash
 0gzk publish ./circuit_bundle
@@ -32,9 +32,9 @@ That is the whole arc: **build, publish, fetch, prove, verify**.
 
 ## How the two layers fit together
 
-**Storage** is the home of the **circuit bundle**. Bundles are tarred and uploaded once; everyone fetches the exact same bytes by content address. On **0G Storage** (the default) the **0G indexer** finds the right storage nodes; on **IPFS** any public gateway serves the pinned tarball. Either way the **SDK** unpacks the bundle into the four fields the prover needs (**`wasm`**, **`zkey`**, **`vkey`**, **`metadata`**), and the **CLI cache** at **`~/.0gzk/bundles/<rootHash>/`** keeps things fast on repeat use.
+**Storage** is the home of the **circuit bundle**. Bundles are tarred and uploaded once; everyone fetches the exact same bytes by content address. On **IPFS** (the default, since the default chain is Base) any public gateway serves the pinned tarball; on **0G Storage** the **0G indexer** finds the right storage nodes. Either way the **SDK** unpacks the bundle into the four fields the prover needs (**`wasm`**, **`zkey`**, **`vkey`**, **`metadata`**), and the **CLI cache** at **`~/.0gzk/bundles/<rootHash>/`** keeps things fast on repeat use.
 
-**The registry chain** is where the **`CircuitRegistry`** lives — deployed on **0G Chain** (mainnet and Galileo testnet) and on **Base** (Sepolia first). The registry maps a human-friendly **`name`** and **`version`** to the bundle's **`rootHash`**, along with a **`vkeyHash`** that lets clients confirm they downloaded the right verification key. The registry is an EVM contract; you can deploy your own verifier next to it and gate on-chain actions with **`IGroth16Verifier.verifyProof`** when your product calls for it.
+**The registry chain** is where the **`CircuitRegistry`** lives — deployed on **Base** (mainnet and Sepolia) and on **0G Chain** (mainnet and Galileo testnet), all four live today. The registry maps a human-friendly **`name`** and **`version`** to the bundle's **`rootHash`**, along with a **`vkeyHash`** that lets clients confirm they downloaded the right verification key. The registry is an EVM contract; you can deploy your own verifier next to it and gate on-chain actions with **`IGroth16Verifier.verifyProof`** when your product calls for it.
 
 The two layers are independent. **Storage** is the source of truth for bytes; the **registry chain** is the source of truth for names and proofs that other smart contracts can trust. Which storage backend a record points at is encoded in its **`metadataURI`** (see **[Networks & storage](/networks#bundle-uri-convention)**).
 
@@ -42,7 +42,7 @@ The two layers are independent. **Storage** is the source of truth for bytes; th
 
 ### Circuit authors
 
-You design the circuit, run the trusted setup, and decide what **`metadata.json`** says about expected inputs. After you build the **`circuit_bundle/`**, **`0gzk publish`** sends it to **0G Storage** (or **IPFS**); **`0gzk publish --register`** adds a record on the registry chain so other people can discover the circuit by name. **[Example 05: Publish your circuit](/examples/05-publish-your-own)** walks the full author journey.
+You design the circuit, run the trusted setup, and decide what **`metadata.json`** says about expected inputs. After you build the **`circuit_bundle/`**, **`0gzk publish`** pins it to **IPFS** (or uploads it to **0G Storage**); **`0gzk publish --register`** adds a record on the registry chain so other people can discover the circuit by name. **[Example 05: Publish your circuit](/examples/05-publish-your-own)** walks the full author journey.
 
 ### App and backend developers
 
@@ -57,12 +57,12 @@ When proofs gate state changes, you wire **`IGroth16Verifier`** into your contra
 ```mermaid
 flowchart LR
   Author["Circuit author"] -->|build| Bundle["circuit_bundle"]
-  Bundle -->|0gzk publish| Storage["0G Storage / IPFS"]
+  Bundle -->|0gzk publish| Storage["IPFS / 0G Storage"]
   Storage -->|rootHash| Client["App, CLI, or browser"]
   Client -->|fetch by rootHash| Storage
   Storage -->|bundle bytes| Client
   Client -->|snarkjs Groth16| Proof["proof + public signals"]
-  Storage -.->|register version| Registry["CircuitRegistry on 0G Chain or Base"]
+  Storage -.->|register version| Registry["CircuitRegistry on Base or 0G Chain"]
   Registry -.->|resolve name| Client
   Proof -.->|on-chain check| Verifier["Verifier contract"]
 ```
@@ -73,9 +73,9 @@ Solid arrows are the path every project follows: **build, store, fetch, prove**.
 
 | Term | Meaning |
 | --- | --- |
-| **0G Storage** | Decentralized storage used for content-addressed circuit bundles (the default backend); reached through **`@0gfoundation/0g-ts-sdk`**. |
-| **IPFS backend** | Alternative bundle storage: pin via any **`pinFileToIPFS`**-compatible service, fetch via a public gateway. Default for Base chains. |
-| **Registry chain** | EVM chain hosting **`CircuitRegistry`** and any Groth16 verifier contracts you deploy — **0G Chain** or **Base** (see **[Networks & storage](/networks)**). |
+| **IPFS backend** | Bundle storage on Base chains, and therefore the default backend: pin via any **`pinFileToIPFS`**-compatible service, fetch via a public gateway. |
+| **0G Storage** | Decentralized storage used for content-addressed circuit bundles on 0G chains; reached through **`@0gfoundation/0g-ts-sdk`**. |
+| **Registry chain** | EVM chain hosting **`CircuitRegistry`** and any Groth16 verifier contracts you deploy — **Base** (default) or **0G Chain** (see **[Networks & storage](/networks)**). |
 | **Circuit bundle** | The folder (or tar) with **`circuit.wasm`**, **`circuit_final.zkey`**, **`verification_key.json`**, **`metadata.json`**, and usually **`verifier.sol`**. |
 | **rootHash** | `bytes32` content address of a bundle: the **0G Storage** Merkle root, or the sha2-256 digest of an IPFS **CIDv0**. The handle clients use with **`fetchBundle`** or **`0gzk fetch`**. |
 | **Bundle URI** | `0g://0x...` or `ipfs://Qm...`, stored in the record's **`metadataURI`** so clients know which backend holds the bytes. |
@@ -88,6 +88,7 @@ Solid arrows are the path every project follows: **build, store, fetch, prove**.
 
 Set up your environment in **[Getting started](/getting-started)**, then pick a path:
 
+- **[AI agent](/agent)** to describe a proof in plain English and have it generated on your machine.
 - **[CLI](/cli)** for shell workflows like **`0gzk publish`** and **`0gzk prove`**.
 - **[Networks & storage](/networks)** for supported chains, storage backends, and the bundle-URI convention.
 - **[SDK](/sdk)** for TypeScript integration in apps.

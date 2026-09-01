@@ -1,22 +1,24 @@
 # 0gzk
 
-> **ZK Proof-as-a-Service on decentralized storage — publish Circom circuits once to 0G Storage or IPFS, register them on 0G Chain or Base, prove anything client-side via SDK or CLI. Witnesses never leave the device.**
+> **ZK Proof-as-a-Service on decentralized storage — publish Circom circuits once to IPFS or 0G Storage, register them on Base or 0G Chain, prove anything client-side via SDK, CLI, or an AI agent that runs the job for you. Witnesses never leave the device.**
 
 [![npm: @0gzk/sdk](https://img.shields.io/npm/v/@0gzk/sdk?label=%40%30gzk%2Fsdk)](https://www.npmjs.com/package/@0gzk/sdk)
 [![npm: @0gzk/cli](https://img.shields.io/npm/v/@0gzk/cli?label=%40%30gzk%2Fcli)](https://www.npmjs.com/package/@0gzk/cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Circuit authors compile a Circom circuit, run a one-shot trusted setup, and publish the resulting `circuit_bundle/` (wasm + zkey + verification key + verifier contract + metadata) to **0G Storage** (default) or **IPFS** as a single content-addressed `tar.gz`. The returned `rootHash` is the bundle's content address (on IPFS it is the CIDv0's sha2-256 digest, bijective with the CID). An on-chain `CircuitRegistry` — deployed on **0G Chain** and **Base** (mainnet + Sepolia, same address `0xCe9f…E64d` on all three) — maps `name@version` to that hash. Anyone can fetch the bundle back, validate inputs against the circuit's schema, and produce a Groth16 proof locally — in Node, in a browser, or via the `0gzk` CLI. Optional on-chain verification uses the auto-generated `verifier.sol`.
+Circuit authors compile a Circom circuit, run a one-shot trusted setup, and publish the resulting `circuit_bundle/` (wasm + zkey + verification key + verifier contract + metadata) to **IPFS** (the default) or **0G Storage** as a single content-addressed `tar.gz`. The returned `rootHash` is the bundle's content address (on IPFS it is the CIDv0's sha2-256 digest, bijective with the CID). An on-chain `CircuitRegistry` — deployed on **Base** and **0G Chain** (mainnet + testnet on both; same address `0xCe9f…E64d` on Base mainnet, Base Sepolia and 0G mainnet) — maps `name@version` to that hash. Anyone can fetch the bundle back, validate inputs against the circuit's schema, and produce a Groth16 proof locally — in Node, in a browser, via the `0gzk` CLI, or by asking `0gzk agent` in plain English. Optional on-chain verification uses the auto-generated `verifier.sol`.
+
+**The default network is `base`** (chain ID `8453`), which also makes **IPFS the default storage backend**. `0gzk config set network 0g-mainnet` (or `--network 0g-mainnet` / `OGZK_NETWORK=0g-mainnet`) moves the whole stack back to 0G Chain + 0G Storage.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   Author[Circuit author] -->|"build.sh"| Bundle["circuit_bundle/"]
-  Bundle -->|"0gzk publish"| OG[("0G Storage")]
-  OG -->|"rootHash"| Registry[On-chain registry]
-  User[User app / CLI / browser] -->|"fetch by rootHash"| OG
-  OG -->|"bundle + Merkle proof"| User
+  Bundle -->|"0gzk publish"| OG[("IPFS / 0G Storage")]
+  OG -->|"rootHash"| Registry["On-chain registry (Base / 0G)"]
+  User[User app / CLI / agent / browser] -->|"fetch by rootHash"| OG
+  OG -->|"bundle bytes"| User
   User -->|"snarkjs.groth16.fullProve\n(in-process, no server)"| Proof["proof.json + public.json"]
   Proof -.->|"optional"| Verifier["verifier.sol on-chain"]
 ```
@@ -54,13 +56,16 @@ const { proof, publicSignals } = await generateProof(bundle, inputs);
 const ok = await verifyLocal(bundle, { proof, publicSignals });
 ```
 
-In Node you can pull the bundle off 0G Storage instead of constructing one by hand:
+In Node you can pull the bundle from storage instead of constructing one by hand. `loadConfig()` with nothing set resolves **Base + IPFS**:
 
 ```ts
 import { fetchBundle, loadConfig } from "@0gzk/sdk/node";
 
-const config = loadConfig({});
+const config = loadConfig({});                        // network: "base", storage: "ipfs"
 const bundle = await fetchBundle(rootHash, config, "/tmp/my-bundle");
+
+// Same call against 0G Chain + 0G Storage:
+const zeroG = loadConfig({ network: "0g-mainnet" });  // storage flips to "0g"
 ```
 
 Or skip "what's the rootHash?" entirely and resolve circuits by name from the on-chain registry:
@@ -70,7 +75,8 @@ import { JsonRpcProvider } from "ethers";
 import { getRegistryContract, resolveBundle, parseNameSpec } from "@0gzk/sdk/onchain";
 import { fetchBundle, loadConfig } from "@0gzk/sdk/node";
 
-const registry = getRegistryContract(new JsonRpcProvider("https://evmrpc.0g.ai"));
+// chainId defaults to 8453 (Base mainnet); pass it explicitly on other chains.
+const registry = getRegistryContract(new JsonRpcProvider("https://mainnet.base.org"), undefined, 8453);
 const { record, bundle } = await resolveBundle(
   registry,
   parseNameSpec("age_verification@0.1.0"),
@@ -83,26 +89,30 @@ Browser, Next.js App Router, registry-driven proving, and CI recipes are all in 
 ## Use the CLI
 
 ```bash
-# One-time setup: store a funded mainnet key in ~/.0gzk/config.json (mode 0600).
-# The CLI does not read .env files; everything lives in the global config store.
-0gzk key 0x...                   # shortcut for `0gzk config set privateKey 0x...`
-0gzk config get                  # show current values + their source
+# One-time setup: store a funded key in ~/.0gzk/config.json (mode 0600) and a
+# pinning token for IPFS uploads. The CLI does not read .env files; everything
+# lives in the global config store.
+0gzk key 0x...                       # shortcut for `0gzk config set privateKey 0x...`
+0gzk config set ipfsApiToken eyJ...  # Pinata-style JWT; the only publish credential on Base
+0gzk config get                      # show current values + their source
 
-# Publish a circuit bundle to 0G Storage
+# Publish a circuit bundle. Defaults: pinned to IPFS, registry on Base mainnet.
 0gzk publish ./circuit_bundle
 
 # Publish AND register on-chain in one step
 0gzk publish ./circuit_bundle --register
 
-# Publish to Base Sepolia: bundle pinned to IPFS, record registered on Base
-# (needs `0gzk config set ipfsApiToken <jwt>` + Base Sepolia ETH; no 0G wallet)
+# Same flow on Base Sepolia (testnet ETH from any Base Sepolia faucet)
 0gzk publish ./circuit_bundle --network base-sepolia --register
+
+# Opt into 0G Chain + 0G Storage instead (needs a funded 0G wallet)
+0gzk publish ./circuit_bundle --network 0g-mainnet --register
 
 # Finalization on 0G Storage can take a few minutes. Set a wall-clock budget
 # (default 5m). The rootHash is printed the moment it's known, so if the wait
 # is exceeded the upload tx is still on chain and you can recover.
-0gzk publish ./circuit_bundle --wait 30m
-0gzk publish ./circuit_bundle --no-wait --register   # return as soon as rootHash is known
+0gzk publish ./circuit_bundle --network 0g-mainnet --wait 30m
+0gzk publish ./circuit_bundle --network 0g-mainnet --no-wait --register
 
 # Recovery path: register an already-uploaded rootHash without re-uploading.
 0gzk registry register 0xabc... --bundle ./circuit_bundle
@@ -145,8 +155,18 @@ pnpm smoke           # node prove.mjs age_verification 1990
 
 Two AI surfaces ship with the repo, both backed by the committed circuit catalog (`circuits/index.json`, regenerated with `0gzk catalog build`):
 
-- **[`@0gzk/mcp`](./packages/mcp)** — an MCP server exposing nine tools: circuit search over names/tags/use-cases, live-registry listing and resolution on every supported chain, plus authoring helpers (scaffold, validate, build, prove). `claude mcp add 0gzk -- npx -y @0gzk/mcp` wires it into Claude Code; this repo also ships a pre-wired [`.mcp.json`](./.mcp.json). Cursor and Claude Desktop configs are in the [package README](./packages/mcp/README.md).
-- **`0gzk agent`** — a terminal chat assistant: `0gzk agent "which circuit proves someone is over 18?"`. **No API key needed** — the conversation runs through the hosted 0gzk backend (gpt-5-nano + the discovery tools, server-side), with every tool call traced in the terminal. Circuit authors can pass `--local` to run the Claude Agent SDK in-process with the full authoring toolset (scaffold → build → prove), using their own Anthropic key or Claude Code login.
+- **`0gzk agent`** — a terminal agent that **does the job instead of describing it**: it finds the circuit, tells you which signals it needs, asks for the values it doesn't have, validates them, **runs the prover on your machine**, and writes the artifacts to disk.
+
+  ```bash
+  0gzk agent "Prove that I am over 18. I was born in 1990, the current year is 2026. Save the proof to /tmp/agent-proof"
+  # ⏺ search_circuits(…)                    ← server-side
+  # ⏺ validate_inputs(…)          · local   ← your machine
+  # ⏺ prove_circuit(…, outDir)    · local   ← your machine
+  # verified: true · publicSignals ["1","2026","18"] · /tmp/agent-proof/{proof,public,result}.json
+  ```
+
+  **No API key needed**: the conversation runs through the hosted 0gzk backend (gpt-5-nano + the read-only discovery tools, server-side). The three tools that touch your files or your witness — `validate_inputs`, `read_input_file`, `prove_circuit` — are declared to the model but **executed by your CLI**, so private inputs never reach the server. Circuit authors can pass `--local` to run the Claude Agent SDK in-process with the full authoring toolset (scaffold → build → prove), using their own Anthropic key or Claude Code login. Details: [docs → AI agent](./docs/content/agent.mdx).
+- **[`@0gzk/mcp`](./packages/mcp)** — an MCP server exposing **11 tools in a repo checkout, 8 anywhere else**: circuit search over names/tags/use-cases, live-registry listing and resolution on every supported chain, input-schema validation, local input files, proof generation, plus authoring helpers (scaffold, validate metadata, build). `claude mcp add 0gzk -- npx -y @0gzk/mcp` wires it into Claude Code; this repo also ships a pre-wired [`.mcp.json`](./.mcp.json). Cursor and Claude Desktop configs are in the [package README](./packages/mcp/README.md).
 
 ## Repository layout
 
@@ -200,62 +220,73 @@ node packages/cli/dist/index.js prove \
 
 ## Network configuration
 
-The Node surface and the CLI default to **0G mainnet** (`0g-mainnet`, chain ID **16661**). Four networks are supported:
+The Node surface and the CLI default to **Base mainnet** (`base`, chain ID **8453**) — a breaking change from the previous `0g-mainnet` default. Four networks are supported, all four with a live `CircuitRegistry` baked into the SDK:
 
 | Network       | Chain ID | RPC                          | Explorer                      | `CircuitRegistry`                            |
 | ------------- | -------: | ---------------------------- | ----------------------------- | -------------------------------------------- |
+| `base` **(default)** | `8453`   | `https://mainnet.base.org`     | `https://basescan.org`            | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
+| `base-sepolia`| `84532`  | `https://sepolia.base.org`     | `https://sepolia.basescan.org`    | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 | `0g-mainnet`  | `16661`  | `https://evmrpc.0g.ai`         | `https://chainscan.0g.ai`         | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 | `0g-testnet`  | `16602`  | `https://evmrpc-testnet.0g.ai` | `https://chainscan-galileo.0g.ai` | `0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6` |
-| `base-sepolia`| `84532`  | `https://sepolia.base.org`     | `https://sepolia.basescan.org`    | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
-| `base`        | `8453`   | `https://mainnet.base.org`     | `https://basescan.org`            | `0xCe9f0DF51abeC7B8cD751067c6D8d3db5E2bE64d` |
 
-The deprecated aliases `mainnet` → `0g-mainnet` and `testnet` → `0g-testnet` are still accepted everywhere; unknown network names now error (listing the valid values) instead of silently defaulting.
+The deprecated aliases `mainnet` → `0g-mainnet` and `testnet` → `0g-testnet` are still accepted everywhere; unknown network names error (listing the valid values) instead of silently defaulting. All 14 reference circuits are published on `base` and `base-sepolia` (bundles on IPFS); the earlier 0G publications stay live on `0g-mainnet` / `0g-testnet` (bundles on 0G Storage).
 
-Bundle storage is a separate choice from the registry chain: 0G chains default to the **0G Storage** backend (funded 0G wallet required to publish), Base chains default to the **IPFS** backend (a `pinFileToIPFS`-compatible token like a Pinata JWT is all publishing needs — no 0G wallet). Fetching needs neither.
+Bundle storage is a separate choice from the registry chain, but it follows the chain family by default: Base chains use the **IPFS** backend (a `pinFileToIPFS`-compatible token like a Pinata JWT is all publishing needs — no 0G wallet), 0G chains use the **0G Storage** backend (funded 0G wallet required to publish). Since `base` is the default network, **`ipfs` is the default backend**. Fetching needs neither credential.
 
 For the **CLI**, persist values once with `0gzk config set <key> <value>` (writes `~/.0gzk/config.json` with mode `0600`). The CLI does **not** read `.env` files. For programmatic use of `@0gzk/sdk` from a Node app, the same values are read from environment variables — the generic `OGZK_*` names are preferred, the legacy `OG_*` names still work.
 
 | `0gzk config` key | Env var (legacy)                        | Default                                  | Purpose                                       |
 | ----------------- | --------------------------------------- | ---------------------------------------- | --------------------------------------------- |
-| `network`         | `OGZK_NETWORK` (`OG_NETWORK`)           | `0g-mainnet`                             | One of the four networks above (or an alias)  |
+| `network`         | `OGZK_NETWORK` (`OG_NETWORK`)           | `base`                                   | One of the four networks above (or an alias)  |
 | `privateKey`      | `OGZK_PRIVATE_KEY` (`OG_PRIVATE_KEY`)   | —                                        | Funded `0x...` key for uploads/registrations  |
 | `rpcUrl`          | `OGZK_RPC_URL` (`OG_RPC_URL`)           | preset RPC                               | EVM RPC override                              |
 | `indexerUrl`      | `OG_INDEXER_URL`                        | preset indexer                           | 0G Storage indexer override (0g backend)      |
 | `registry`        | `OGZK_REGISTRY_ADDRESS`                 | baked-in per chain                       | `CircuitRegistry` address override            |
-| `storage`         | `OGZK_STORAGE`                          | `0g` on 0G chains, `ipfs` on Base        | Bundle storage backend: `0g` or `ipfs`        |
+| `storage`         | `OGZK_STORAGE`                          | `ipfs` on Base, `0g` on 0G chains        | Bundle storage backend: `0g` or `ipfs`        |
 | `storageNetwork`  | `OGZK_STORAGE_NETWORK`                  | selected 0G network, else `0g-mainnet`   | 0G chain the `0g` backend signs uploads on    |
 | `ipfsApiUrl`      | `OGZK_IPFS_API_URL`                     | Pinata's `pinFileToIPFS` endpoint        | Any `pinFileToIPFS`-compatible upload API     |
 | `ipfsApiToken`    | `OGZK_IPFS_API_TOKEN`                   | —                                        | Bearer token for the pinning API (masked)     |
-| `ipfsGateway`     | `OGZK_IPFS_GATEWAY`                     | `https://ipfs.io`                        | HTTP gateway for IPFS fetches                 |
-| `anthropicApiKey` | `ANTHROPIC_API_KEY`                     | —                                        | For the upcoming `0gzk agent` (masked)        |
+| `ipfsGateway`     | `OGZK_IPFS_GATEWAY`                     | `https://gateway.pinata.cloud`           | HTTP gateway for IPFS fetches (with fallbacks)|
+| `anthropicApiKey` | `ANTHROPIC_API_KEY`                     | —                                        | Auth for `0gzk agent --local` (masked)        |
+| `agentUrl`        | `OGZK_AGENT_URL`                        | `https://0gzk.com/api/agent`             | Hosted `0gzk agent` endpoint                  |
 | —                 | `OGZK_CACHE_DIR`                        | `~/.0gzk/bundles`                        | Where `0gzk prove --root-hash` caches bundles |
 
 Resolution priority for the CLI: CLI flag > shell env > `~/.0gzk/config.json` > built-in network preset. Downloads (`fetch`, remote `prove`) do not require a wallet.
 
 ### Choosing a network
 
-**0G Galileo testnet** — same stack as mainnet, free gas from the [official faucet](https://faucet.0g.ai):
-
-```bash
-0gzk config set network 0g-testnet
-# Defaults flip to:
-#   RPC:     https://evmrpc-testnet.0g.ai
-#   Indexer: https://indexer-storage-testnet-turbo.0g.ai
-#   Chain:   16602 (Galileo)
-```
-
-The Galileo `CircuitRegistry` is at [`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`](https://chainscan-galileo.0g.ai/address/0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6).
-
-**Base Sepolia** — registry on Base, bundles pinned to IPFS, no 0G wallet needed:
+**Base mainnet** — the default; nothing to configure. Registry on Base, bundles pinned to IPFS, no 0G wallet anywhere:
 
 ```bash
 0gzk config set ipfsApiToken eyJ...      # Pinata-style JWT; the only publish credential
-0gzk key 0x...                            # funded with Base Sepolia ETH (faucet)
-0gzk publish ./circuit_bundle --network base-sepolia --register
-OGZK_NETWORK=base-sepolia 0gzk prove --name my_circuit ./input.json
+0gzk key 0x...                            # funded with Base ETH for the registration tx
+0gzk publish ./circuit_bundle --register  # --network base is implied
+0gzk prove --name age_verification ./input.json
 ```
 
-The record's `metadataURI` carries the bundle's `ipfs://` URI, so fetch-by-name routes to an IPFS gateway automatically. Registering on Base while keeping bundles on 0G Storage also works (`--storage 0g`) — that split needs gas on both chains. Full details in [docs → Networks & storage](./docs/content/networks.mdx).
+The record's `metadataURI` carries the bundle's `ipfs://` URI, so fetch-by-name routes to an IPFS gateway automatically. **Base Sepolia** is the same flow with `--network base-sepolia` / `OGZK_NETWORK=base-sepolia` and faucet ETH.
+
+**0G mainnet** — the switch back from the Base default; registry on 0G Chain, bundles on 0G Storage:
+
+```bash
+0gzk config set network 0g-mainnet
+# Defaults flip to:
+#   RPC:     https://evmrpc.0g.ai
+#   Indexer: https://indexer-storage-turbo.0g.ai
+#   Chain:   16661
+#   Storage: 0g  (a funded 0G wallet is required to publish)
+```
+
+**0G Galileo testnet** — same stack, free gas from the [official faucet](https://faucet.0g.ai):
+
+```bash
+0gzk config set network 0g-testnet
+# RPC https://evmrpc-testnet.0g.ai · indexer https://indexer-storage-testnet-turbo.0g.ai · chain 16602
+```
+
+The Galileo `CircuitRegistry` is at [`0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6`](https://chainscan-galileo.0g.ai/address/0x5b2c3e86c9255a4459199a6d9cb7b63e2a660ce6); the other three chains share `0xCe9f…E64d`.
+
+Registry chain and storage backend are independent, so registering on Base while keeping bundles on 0G Storage also works (`--storage 0g`) — that split needs gas on both chains. Full details in [docs → Networks & storage](./docs/content/networks.mdx).
 
 ## Roadmap
 
@@ -268,15 +299,17 @@ The record's `metadataURI` carries the bundle's `ipfs://` URI, so fetch-by-name 
 - [x] On-chain circuit registry (`CircuitRegistry.sol`) + `@0gzk/sdk/onchain` client (v0.2)
 - [x] More reference circuits: `poseidon_preimage`, `merkle_membership`, `private_balance_threshold` (v0.2)
 - [x] Vitest test suite for `@0gzk/sdk`: unit + fixture integration + gated live e2e (v0.2)
+- [x] Multi-chain: IPFS storage backend + `CircuitRegistry` on Base mainnet and Base Sepolia, with `base` as the default network (v0.4)
+- [x] `0gzk agent` and `@0gzk/mcp`: an agent that generates the proof itself, with the witness-touching tools executed on the user's machine (v0.4)
 - [ ] On-chain Groth16 verification helper in `@0gzk/sdk/onchain` (after first verifier-attached deploy)
 - [ ] Marketplace UI surfacing community-published circuits
 - [ ] Distributed trusted-setup ceremonies via 0G Compute (v0.3)
 
 See [CHANGELOG.md](./CHANGELOG.md) and [TODO.md](./TODO.md) for release notes and the active backlog.
 
-## Why 0G Storage
+## Why decentralized storage
 
-Circuit artifacts (wasm + zkey) are megabytes — too expensive to host on Ethereum and too central to put on a single CDN. 0G Storage is decentralized, content-addressed, DA-optimized, and cheap enough to host hundreds of circuits at platform scale. The `rootHash` is portable: any client with the indexer URL can pull a verified copy.
+Circuit artifacts (wasm + zkey) are megabytes — too expensive to host on Ethereum and too central to put on a single CDN. Both backends are decentralized and content-addressed: **IPFS** (the default) needs nothing but a public gateway to read and a pinning token to write, and **0G Storage** is DA-optimized and cheap enough to host hundreds of circuits at platform scale. Either way the `rootHash` is portable — any client can pull a verified copy and check it against the registry's `vkeyHash`.
 
 ## Why client-side proving
 
