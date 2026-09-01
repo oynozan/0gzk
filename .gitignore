@@ -4,7 +4,10 @@ node_modules/
 
 # build output
 dist/
-build/
+# NOTE: scoped, not a bare `build/` — that silently excluded
+# packages/sdk/src/build/ (the /build subpath's source).
+circuits/*/build/
+examples/*/build/
 *.tsbuildinfo
 .next/
 out/

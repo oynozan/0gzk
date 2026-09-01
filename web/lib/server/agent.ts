@@ -263,7 +263,14 @@ export async function runAgentTurn(history: ChatMessage[]): Promise<AgentTurnRes
     const message = await callOpenAi(apiKey, messages, tools);
 
     if (!message.tool_calls?.length) {
-      return { done: true, reply: message.content ?? "", trace, model: MODEL };
+      // Echo the transcript so the CLI can replay it on the next turn.
+      return {
+        done: true,
+        reply: message.content ?? "",
+        trace,
+        model: MODEL,
+        messages: messages.slice(1), // drop the system prompt; re-added per request
+      };
     }
 
     messages.push({

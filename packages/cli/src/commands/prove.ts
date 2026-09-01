@@ -129,7 +129,11 @@ async function resolveBundle(
 
   const spinner = ora("Downloading bundle from storage").start();
   try {
-    const bundle = await fetchBundle(rootHash, config, cacheDir);
+    const bundle = await fetchBundle(
+      rootHash,
+      { ...config, storageExplicit: Boolean(process.env.OGZK_STORAGE) },
+      cacheDir,
+    );
     spinner.succeed(`Bundle cached at ${cacheDir}`);
     return { bundle, source: `0g:${rootHash}`, cacheDir, rootHash };
   } catch (err) {

@@ -10,6 +10,10 @@ const MAX_MESSAGE_LENGTH = 4000;
 /** Tool results carry schemas and public signals, so they get more room. */
 const MAX_TOOL_RESULT_LENGTH = 20_000;
 const MAX_TOOL_CALLS = 8;
+/** Serialized size cap for a replayed tool_calls array. */
+const MAX_TOOL_CALLS_BYTES = 24_000;
+/** Whole-body cap, checked before parsing anything. */
+const MAX_BODY_BYTES = 512_000;
 
 function validate(body: unknown): ChatMessage[] | null {
   if (!body || typeof body !== "object") return null;
@@ -37,9 +41,13 @@ function validate(body: unknown): ChatMessage[] | null {
 
     if (role !== "user" && role !== "assistant") return null;
 
-    // Assistant turn that requested tools: content may be null/empty.
+    // Assistant turn that requested tools: content may be null/empty. These
+    // are replayed verbatim to the model, so bound them like everything else
+    // rather than trusting the client.
     if (role === "assistant" && Array.isArray(tool_calls)) {
       if (tool_calls.length > MAX_TOOL_CALLS) return null;
+      if (typeof content === "string" && content.length > MAX_MESSAGE_LENGTH) return null;
+      if (JSON.stringify(tool_calls).length > MAX_TOOL_CALLS_BYTES) return null;
       out.push({
         role,
         content: typeof content === "string" ? content : null,
@@ -62,9 +70,18 @@ function validate(body: unknown): ChatMessage[] | null {
 }
 
 export async function POST(request: Request) {
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (declaredLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400 });
   }

@@ -118,9 +118,18 @@ export async function runRemoteTurn(
       process.stdout.write(`${payload.reply}\n`);
       const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
       console.log(chalk.dim(`\n${"─".repeat(40)}\n${model} · ${elapsed}s`));
-      // Keep the caller's history in sync so follow-up turns have context.
+
+      // Sync the caller's history for follow-up turns. Snapshot FIRST:
+      // `messages` may alias `history`, so clearing before reading would
+      // erase the conversation (and the server omits `messages` when done).
+      const transcript = [...(payload.messages ?? messages)];
+      // An empty assistant turn would be rejected by the API next request,
+      // bricking the session — keep it out of the replayed history.
+      if (payload.reply.trim().length > 0) {
+        transcript.push({ role: "assistant", content: payload.reply });
+      }
       history.length = 0;
-      history.push(...(payload.messages ?? messages), { role: "assistant", content: payload.reply });
+      history.push(...transcript);
       return payload.reply;
     }
 

@@ -54,16 +54,23 @@ export async function uploadBundle(
 }
 
 /**
- * Fetch and extract a bundle. `ref` may be a bare `0x` root hash (backend
- * chosen by `config.storage`, defaulting to 0G — today's behavior), an
- * `ipfs://<cid>` / `Qm...` reference, or a `0g://0x...` URI.
+ * Fetch and extract a bundle. `ref` may be an `ipfs://<cid>` / `Qm...`
+ * reference, a `0g://0x...` URI, or a bare `0x` root hash.
+ *
+ * A bare hash is ambiguous — both backends address content by 32 bytes. It
+ * resolves to 0G Storage unless the caller explicitly asked for IPFS
+ * (`config.storage === "ipfs"` set deliberately rather than inherited from
+ * the network preset). Inheriting it would break `fetch 0x…` / `prove
+ * --root-hash 0x…` for every 0G bundle now that Base (and therefore IPFS)
+ * is the default network.
  */
 export async function fetchBundle(
   ref: string,
-  config: FetchConfig,
+  config: FetchConfig & { storageExplicit?: boolean },
   outputDir?: string,
 ): Promise<BundleFiles> {
-  const backend = backendForRef(ref) ?? config.storage ?? "0g";
+  const fromRef = backendForRef(ref);
+  const backend = fromRef ?? (config.storageExplicit && config.storage ? config.storage : "0g");
   if (backend === "ipfs") {
     return ipfsBackendFrom(config).fetch(ref, outputDir);
   }

@@ -16,6 +16,15 @@ import { resolveNameToRecord } from "./registry";
 
 function defaultCacheDir(): string {
   if (process.env.OGZK_CACHE_DIR) return path.resolve(process.env.OGZK_CACHE_DIR);
+  // Serverless hosts mount everything except /tmp read-only, so a homedir
+  // cache would EROFS on the first fetch. Detect the common platforms and
+  // fall back to the OS temp dir.
+  const serverless =
+    process.env.VERCEL ??
+    process.env.AWS_LAMBDA_FUNCTION_NAME ??
+    process.env.NETLIFY ??
+    process.env.K_SERVICE; // Cloud Run / Knative
+  if (serverless) return path.join(os.tmpdir(), "0gzk-bundles");
   return path.join(os.homedir(), ".0gzk", "bundles");
 }
 

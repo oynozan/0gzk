@@ -41,7 +41,13 @@ export async function runFetch(
   ).start();
   let bundle;
   try {
-    bundle = await fetchBundle(ref, config, target);
+    // --storage (or OGZK_STORAGE) is a deliberate choice; a backend merely
+    // inherited from the network preset must not hijack a bare 0x hash.
+    bundle = await fetchBundle(
+      ref,
+      { ...config, storageExplicit: Boolean(options.storage ?? process.env.OGZK_STORAGE) },
+      target,
+    );
     spinner.succeed("Bundle downloaded and extracted");
   } catch (err) {
     spinner.fail("Download failed");

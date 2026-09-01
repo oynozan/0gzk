@@ -69,7 +69,8 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --exclude \"tests/e2e/**\"",
     "test:watch": "vitest",
-    "test:e2e": "vitest run tests/e2e/live.test.ts"
+    "test:e2e": "vitest run tests/e2e/live.test.ts",
+    "prepack": "pnpm run build"
   },
   "peerDependencies": {
     "snarkjs": "^0.7.5",
