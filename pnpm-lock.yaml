@@ -148,10 +148,10 @@ importers:
         specifier: ^1.2.4
         version: 1.2.4(bufferutil@4.1.0)(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
       '@0gzk/mcp':
-        specifier: workspace:^
+        specifier: ^0.1.0
         version: link:../packages/mcp
       '@0gzk/sdk':
-        specifier: workspace:^
+        specifier: ^0.4.0
         version: link:../packages/sdk
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0

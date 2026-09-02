@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.4",
-    "@0gzk/mcp": "workspace:^",
-    "@0gzk/sdk": "workspace:^",
+    "@0gzk/mcp": "^0.1.0",
+    "@0gzk/sdk": "^0.4.0",
     "ethers": "^6.13.0",
     "next": "^16.2.4",
     "react": "^19.0.0",
