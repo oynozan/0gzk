@@ -12,6 +12,10 @@ examples/*/build/
 .next/
 out/
 
+# proof output (0gzk prove / agent)
+proof/
+proof-*/
+
 # circuit artifacts
 *.ptau
 circuits/**/circuit_bundle/

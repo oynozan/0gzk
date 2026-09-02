@@ -34,11 +34,12 @@
   "include": [
     "next-env.d.ts",
     "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "**/*.tsx"
   ],
   "exclude": [
+    ".next",
+    ".next/dev",
+    ".next/standalone",
     "node_modules"
   ]
 }
