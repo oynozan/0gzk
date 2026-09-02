@@ -100,6 +100,11 @@ export const validateInputsTool = defineTool({
         errors: ["no inputs supplied"],
         missing: schema.inputs.map((i) => i.name),
         schema,
+        // Models sometimes probe with {} even when the user already gave the
+        // values; say so explicitly rather than letting them stall.
+        next: `This returned only the schema. If the user already supplied values, map them onto these signals and call validate_inputs again with them — do not ask the user to repeat themselves. Missing: ${schema.inputs
+          .map((i) => i.name)
+          .join(", ")}.`,
       });
     }
 

@@ -6,6 +6,18 @@ import {
 } from "@/lib/server/bundle";
 
 export const runtime = "nodejs";
+
+/** Cloudflare gives up long before we do; fail with JSON instead of a 502. */
+const RESOLVE_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`timed out after ${ms / 1000}s resolving ${what}`)), ms),
+    ),
+  ]);
+}
 export const dynamic = "force-dynamic";
 
 const NAME_SPEC_RE = /^[a-z0-9_-]+(?:@[a-zA-Z0-9._-]+)?$/;
@@ -60,7 +72,7 @@ export async function GET(request: Request) {
           { status: 400 },
         );
       }
-      resolved = await resolveBundleByRootHash(rootHash);
+      resolved = await withTimeout(resolveBundleByRootHash(rootHash), RESOLVE_TIMEOUT_MS, rootHash);
     } else {
       const spec = name as string;
       if (!NAME_SPEC_RE.test(spec)) {
@@ -72,7 +84,7 @@ export async function GET(request: Request) {
           { status: 400 },
         );
       }
-      resolved = await resolveBundleByName(spec);
+      resolved = await withTimeout(resolveBundleByName(spec), RESOLVE_TIMEOUT_MS, spec);
     }
 
     return NextResponse.json(serialize(resolved), {
@@ -82,7 +94,19 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const target = rootHash ? "0G Storage" : "registry / 0G Storage";
+
+    // An unknown circuit reverts on the registry — that is a 404, not an
+    // upstream failure, and it must not read as "the site is broken".
+    if (/unknown circuit|no versions|CircuitNotFound|could not decode|revert/i.test(message)) {
+      return NextResponse.json(
+        { error: `No such circuit: ${name ?? rootHash}`, detail: message },
+        { status: 404 },
+      );
+    }
+    if (message.startsWith("timed out")) {
+      return NextResponse.json({ error: message }, { status: 504 });
+    }
+    const target = rootHash ? "storage" : "registry / storage";
     return NextResponse.json(
       { error: `Failed to resolve bundle from ${target}`, detail: message },
       { status: 502 },
