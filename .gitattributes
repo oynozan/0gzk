@@ -1,3 +1,12 @@
-*.sh text eol=lf
-circuits/**/build.sh text eol=lf
-circuits/_lib/*.sh text eol=lf
+# One line ending everywhere. Without this, a Windows checkout (autocrlf=true)
+# looks 100-files-dirty to git inside WSL, which blocks `pnpm publish`.
+* text=auto eol=lf
+
+# Binary assets: never touched.
+*.png binary
+*.jpg binary
+*.woff2 binary
+*.wasm binary
+*.zkey binary
+*.ptau binary
+*.r1cs binary
